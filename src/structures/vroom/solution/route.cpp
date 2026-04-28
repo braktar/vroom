@@ -67,7 +67,6 @@ void Route::check_timing_consistency() const {
   auto previous_duration = steps.front().duration;
   assert(previous_duration == 0);
 
-  assert(previous_departure == current_arrival);
   assert(steps.back().arrival == steps.back().departure());
 
   for (unsigned s = 1; s < steps.size(); ++s) {

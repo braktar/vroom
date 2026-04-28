@@ -61,6 +61,19 @@ void SolutionState::setup(const RawRoute& r) {
   update_route_bbox(r);
 }
 
+void SolutionState::setup(const TWRoute& r) {
+  update_costs(r);
+  update_skills(r);
+  update_priorities(r);
+  set_node_gains(r);
+  set_edge_gains(r);
+  set_pd_matching_ranks(r);
+  set_pd_gains(r);
+  set_insertion_ranks(r);
+  update_route_eval(r);
+  update_route_bbox(r);
+}
+
 template <class Route>
 void SolutionState::setup(const std::vector<Route>& sol) {
   for (std::size_t v = 0; v < _nb_vehicles; ++v) {
@@ -684,6 +697,18 @@ void SolutionState::update_route_eval(const RawRoute& raw_route) {
   const auto v = raw_route.v_rank;
 
   route_evals[v] = route_eval_for_vehicle(_input, v, raw_route.route);
+}
+
+void SolutionState::update_route_eval(const TWRoute& tw_r) {
+  const auto v = tw_r.v_rank;
+
+  auto eval = route_eval_for_vehicle(_input, v, tw_r.route);
+  if (!tw_r.empty()) {
+    const auto& vehicle = _input.vehicles[v];
+    eval.cost += vehicle.wait_cost(tw_r.asap_total_wait);
+    eval.wait_duration = tw_r.asap_total_wait;
+  }
+  route_evals[v] = eval;
 }
 
 void SolutionState::update_route_bbox(const RawRoute& raw_route) {

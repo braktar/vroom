@@ -16,7 +16,7 @@ namespace vroom {
 
 TWRoute::TWRoute(const Input& input, Index v, unsigned amount_size)
   : RawRoute(input, v, amount_size),
-    v_start(input.vehicles[v].tw.start),
+    v_start(input.vehicles[v].earliest_route_start()),
     v_end(input.vehicles[v].tw.end),
     breaks_at_rank({static_cast<unsigned>(input.vehicles[v].breaks.size())}),
     breaks_counts({static_cast<unsigned>(input.vehicles[v].breaks.size())}),
@@ -244,6 +244,113 @@ void TWRoute::fwd_update_earliest_from(const Input& input, Index rank) {
     earliest_end =
       current_earliest + previous_action_time + remaining_travel_time;
     assert(earliest_end <= v_end);
+  }
+}
+
+void TWRoute::recompute_asap_total_wait(const Input& input) {
+  asap_total_wait = 0;
+  if (route.empty()) {
+    return;
+  }
+
+  const auto& v = input.vehicles[v_rank];
+  // Same depot leave time as format_route (backward min-wait, capped by l_0).
+  const Duration route_origin = utils::min_wait_route_departure(input, *this);
+  assert(route_origin >= v.earliest_route_start());
+  // Count intentional delay at depot (not shown as step waiting_time) so
+  // per_wait_hour matches total slack vs. earliest depot release e_0.
+  asap_total_wait += route_origin - v.earliest_route_start();
+  Duration current_earliest = route_origin;
+
+  for (Index i = 0; i < route.size(); ++i) {
+    const auto& next_j = input.jobs[route[i]];
+
+    Duration remaining_travel_time;
+    if (i == 0) {
+      remaining_travel_time =
+        has_start ? v.duration(v.start.value().index(), next_j.index()) : 0;
+    } else {
+      remaining_travel_time =
+        v.duration(input.jobs[route[i - 1]].index(), next_j.index());
+    }
+
+    Duration previous_action_time = (i == 0) ? 0 : action_time[i - 1];
+
+    assert(breaks_at_rank[i] <= breaks_counts[i]);
+    Index break_rank = breaks_counts[i] - breaks_at_rank[i];
+
+    for (Index r = 0; r < breaks_at_rank[i]; ++r, ++break_rank) {
+      const auto& b = v.breaks[break_rank];
+
+      current_earliest += previous_action_time;
+
+      const auto b_tw = std::ranges::find_if(b.tws, [&](const auto& tw) {
+        return current_earliest <= tw.end;
+      });
+      assert(b_tw != b.tws.end());
+
+      if (current_earliest < b_tw->start) {
+        const auto margin = b_tw->start - current_earliest;
+        if (margin < remaining_travel_time) {
+          remaining_travel_time -= margin;
+        } else {
+          asap_total_wait += margin - remaining_travel_time;
+          remaining_travel_time = 0;
+        }
+
+        current_earliest = b_tw->start;
+      }
+
+      previous_action_time = b.service;
+    }
+
+    current_earliest += previous_action_time + remaining_travel_time;
+
+    const auto j_tw = std::ranges::find_if(next_j.tws, [&](const auto& tw) {
+      return current_earliest <= tw.end;
+    });
+    assert(j_tw != next_j.tws.end());
+
+    const Duration arrival_before_tw = current_earliest;
+    asap_total_wait +=
+      std::max(static_cast<Duration>(0), j_tw->start - arrival_before_tw);
+    current_earliest = std::max(current_earliest, j_tw->start);
+  }
+
+  const Index i = route.size();
+  Duration remaining_travel_time =
+    (v.has_end()) ? v.duration(input.jobs[route[i - 1]].index(),
+                                 v.end.value().index())
+                    : 0;
+
+  Duration previous_action_time = action_time[i - 1];
+
+  assert(breaks_at_rank[i] <= breaks_counts[i]);
+  Index end_break_rank = breaks_counts[i] - breaks_at_rank[i];
+
+  for (Index r = 0; r < breaks_at_rank[i]; ++r, ++end_break_rank) {
+    const auto& b = v.breaks[end_break_rank];
+
+    current_earliest += previous_action_time;
+
+    const auto b_tw = std::ranges::find_if(b.tws, [&](const auto& tw) {
+      return current_earliest <= tw.end;
+    });
+    assert(b_tw != b.tws.end());
+
+    if (current_earliest < b_tw->start) {
+      const auto margin = b_tw->start - current_earliest;
+      if (margin < remaining_travel_time) {
+        remaining_travel_time -= margin;
+      } else {
+        asap_total_wait += margin - remaining_travel_time;
+        remaining_travel_time = 0;
+      }
+
+      current_earliest = b_tw->start;
+    }
+
+    previous_action_time = b.service;
   }
 }
 
@@ -1441,6 +1548,12 @@ void TWRoute::replace(const Input& input,
   }
   if (last_break > 0) {
     bwd_update_breaks_load_margin_from(input, current_job_rank);
+  }
+
+  if (route.empty()) {
+    asap_total_wait = 0;
+  } else {
+    recompute_asap_total_wait(input);
   }
 }
 

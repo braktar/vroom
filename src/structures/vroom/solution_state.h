@@ -138,6 +138,7 @@ public:
   explicit SolutionState(const Input& input);
 
   void setup(const RawRoute& r);
+  void setup(const TWRoute& r);
 
   template <class Route> void setup(const std::vector<Route>& sol);
 
@@ -168,6 +169,7 @@ public:
   void set_insertion_ranks(const TWRoute& r);
 
   void update_route_eval(const RawRoute& raw_route);
+  void update_route_eval(const TWRoute& tw_r);
 
   void update_route_bbox(const RawRoute& raw_route);
 };

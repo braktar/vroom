@@ -323,12 +323,21 @@ Solution format_solution(const Input& input, const RawSolution& raw_routes) {
                   get_unassigned_jobs_from_ranks(input, unassigned_ranks));
 }
 
-Route format_route(const Input& input,
-                   const TWRoute& tw_r,
-                   std::unordered_set<Index>& unassigned_ranks) {
-  const auto& v = input.vehicles[tw_r.v_rank];
+namespace {
 
-  assert(tw_r.size() <= v.max_tasks);
+struct BackwardEtaAnchor {
+  Duration depot_departure;
+  Duration backward_wt;
+  // Depot leave time before optional latest-departure (l_0) cap; used for
+  // debug checks when the cap shifts waiting from depot to in-route.
+  Duration ideal_departure;
+  std::optional<Location> first_location;
+  std::optional<Location> last_location;
+};
+
+BackwardEtaAnchor compute_backward_eta_anchor(const Input& input,
+                                              const TWRoute& tw_r) {
+  const auto& v = input.vehicles[tw_r.v_rank];
 
   // ETA logic: aim at earliest possible arrival then determine latest
   // possible start time in order to minimize waiting times.
@@ -459,6 +468,43 @@ Route format_route(const Input& input,
     step_start -= remaining_travel_time;
   }
 
+  const Duration ideal_departure = step_start;
+
+  // Latest departure from depot (optional l_0): cannot leave after this time.
+  if (v.has_latest_departure()) {
+    assert(v.departure.has_value());
+    step_start = std::min(step_start, v.departure.value());
+  }
+  assert(step_start >= v.tw.start);
+  assert(first_location.has_value() && last_location.has_value());
+
+  return {step_start,
+          backward_wt,
+          ideal_departure,
+          std::move(first_location),
+          std::move(last_location)};
+}
+
+} // namespace
+
+Duration min_wait_route_departure(const Input& input, const TWRoute& tw_r) {
+  return compute_backward_eta_anchor(input, tw_r).depot_departure;
+}
+
+Route format_route(const Input& input,
+                   const TWRoute& tw_r,
+                   std::unordered_set<Index>& unassigned_ranks) {
+  const auto& v = input.vehicles[tw_r.v_rank];
+
+  assert(tw_r.size() <= v.max_tasks);
+
+  auto anchor = compute_backward_eta_anchor(input, tw_r);
+  Duration step_start = anchor.depot_departure;
+  Duration backward_wt = anchor.backward_wt;
+  const Duration ideal_departure = anchor.ideal_departure;
+  auto first_location = std::move(anchor.first_location);
+  auto last_location = std::move(anchor.last_location);
+
   assert(first_location.has_value() && last_location.has_value());
 
 #ifndef NDEBUG
@@ -473,8 +519,14 @@ Route format_route(const Input& input,
 
   steps.emplace_back(STEP_TYPE::START, first_location.value(), current_load);
   assert(v.tw.contains(step_start));
-  steps.back().arrival = scale_to_user_duration(step_start);
-  UserDuration user_previous_end = steps.back().arrival;
+  // Start step: arrival = e_0 (earliest depot release); waiting_time = idle until
+  // actual leave (aligned with per_wait_hour / route.waiting_time).
+  const Duration e0 = v.earliest_route_start();
+  assert(step_start >= e0);
+  const UserDuration user_depot_leave = scale_to_user_duration(step_start);
+  steps.back().arrival = scale_to_user_duration(e0);
+  steps.back().waiting_time = user_depot_leave - steps.back().arrival;
+  UserDuration user_previous_end = user_depot_leave;
 
 #ifndef NDEBUG
   const auto front_step_arrival = step_start;
@@ -487,7 +539,7 @@ Route format_route(const Input& input,
   Eval eval_sum;
   Duration duration = 0;
   UserDuration user_duration = 0;
-  UserDuration user_waiting_time = 0;
+  UserDuration user_waiting_time = steps.back().waiting_time;
   Duration setup = 0;
   Duration service = 0;
   Duration forward_wt = 0;
@@ -518,7 +570,7 @@ Route format_route(const Input& input,
 
     // Handles breaks before this job.
     assert(tw_r.breaks_at_rank[r] <= tw_r.breaks_counts[r]);
-    break_rank = tw_r.breaks_counts[r] - tw_r.breaks_at_rank[r];
+    Index break_rank = tw_r.breaks_counts[r] - tw_r.breaks_at_rank[r];
 
     for (Index i = 0; i < tw_r.breaks_at_rank[r]; ++i, ++break_rank) {
       const auto& b = v.breaks[break_rank];
@@ -679,7 +731,7 @@ Route format_route(const Input& input,
 
   auto r = tw_r.route.size();
   assert(tw_r.breaks_at_rank[r] <= tw_r.breaks_counts[r]);
-  break_rank = tw_r.breaks_counts[r] - tw_r.breaks_at_rank[r];
+  Index break_rank = tw_r.breaks_counts[r] - tw_r.breaks_at_rank[r];
 
   for (Index i = 0; i < tw_r.breaks_at_rank[r]; ++i, ++break_rank) {
     const auto& b = v.breaks[break_rank];
@@ -774,7 +826,10 @@ Route format_route(const Input& input,
   end_step.duration = user_duration;
 
   assert(step_start == tw_r.earliest_end);
-  assert(forward_wt == backward_wt);
+  const bool latest_departure_forces_earlier_leave =
+    v.has_latest_departure() && v.departure.has_value() &&
+    v.departure.value() < ideal_departure;
+  assert(latest_departure_forces_earlier_leave || forward_wt == backward_wt);
 
   assert(step_start ==
          front_step_arrival + duration + setup + service + forward_wt);
@@ -793,10 +848,13 @@ Route format_route(const Input& input,
       : utils::scale_to_user_cost(eval_sum.cost);
   const UserCost user_task_cost =
     scale_to_user_cost(v.task_cost(setup + service));
+  const UserCost user_wait_cost =
+    scale_to_user_cost(v.wait_cost(tw_r.asap_total_wait));
 
   return Route(v.id,
                std::move(steps),
-               user_fixed_cost + user_travel_cost + user_task_cost,
+               user_fixed_cost + user_travel_cost + user_task_cost +
+                 user_wait_cost,
                user_duration,
                eval_sum.distance,
                scale_to_user_duration(setup),

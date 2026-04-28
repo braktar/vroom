@@ -30,7 +30,8 @@ Vehicle::Vehicle(Id id,
                  const std::optional<UserDuration>& max_travel_time,
                  const std::optional<UserDistance>& max_distance,
                  const std::vector<VehicleStep>& input_steps,
-                 std::string type_str)
+                 std::string type_str,
+                 const std::optional<UserDuration>& departure)
   : id(id),
     start(start),
     end(end),
@@ -52,10 +53,24 @@ Vehicle::Vehicle(Id id,
                                            [](const auto& b) {
                                              return b.max_load.has_value();
                                            })),
-    type_str(std::move(type_str)) {
+    type_str(std::move(type_str)),
+    departure(departure.has_value()
+                ? std::optional<Duration>(
+                    utils::scale_from_user_duration(departure.value()))
+                : std::nullopt) {
   if (!static_cast<bool>(start) && !static_cast<bool>(end)) {
     throw InputException(
       std::format("No start or end specified for vehicle {}.", id));
+  }
+
+  if (this->departure.has_value()) {
+    const Duration l0 = this->departure.value();
+    if (l0 < tw.start || l0 > tw.end) {
+      throw InputException(
+        std::format("Invalid latest departure for vehicle {}: "
+                    "must fall within vehicle time window.",
+                    id));
+    }
   }
 
   for (unsigned i = 0; i < breaks.size(); ++i) {

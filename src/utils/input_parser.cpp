@@ -270,6 +270,7 @@ inline VehicleCosts get_vehicle_costs(const rapidjson::Value& v) {
   UserCost per_hour = DEFAULT_COST_PER_HOUR;
   UserCost per_km = DEFAULT_COST_PER_KM;
   UserCost per_task_hour = DEFAULT_COST_PER_TASK_HOUR;
+  UserCost per_wait_hour = DEFAULT_COST_PER_WAIT_HOUR;
 
   if (v.HasMember("costs")) {
     if (!v["costs"].IsObject()) {
@@ -314,9 +315,19 @@ inline VehicleCosts get_vehicle_costs(const rapidjson::Value& v) {
 
       per_task_hour = v["costs"]["per_task_hour"].GetUint();
     }
+
+    if (v["costs"].HasMember("per_wait_hour")) {
+      if (!v["costs"]["per_wait_hour"].IsUint()) {
+        throw InputException(
+          std::format("Invalid per_wait_hour cost for vehicle {}.",
+                      v["id"].GetUint64()));
+      }
+
+      per_wait_hour = v["costs"]["per_wait_hour"].GetUint();
+    }
   }
 
-  return VehicleCosts(fixed, per_hour, per_km, per_task_hour);
+  return VehicleCosts(fixed, per_hour, per_km, per_task_hour, per_wait_hour);
 }
 
 inline std::vector<VehicleStep> get_vehicle_steps(const rapidjson::Value& v) {
@@ -460,6 +471,15 @@ inline Vehicle get_vehicle(const rapidjson::Value& json_vehicle,
     profile = DEFAULT_PROFILE;
   }
 
+  std::optional<UserDuration> departure;
+  if (json_vehicle.HasMember("departure")) {
+    if (!json_vehicle["departure"].IsUint()) {
+      throw InputException(
+        std::format("Invalid latest departure for vehicle {}.", v_id));
+    }
+    departure = json_vehicle["departure"].GetUint();
+  }
+
   return Vehicle(v_id,
                  start,
                  end,
@@ -475,7 +495,8 @@ inline Vehicle get_vehicle(const rapidjson::Value& json_vehicle,
                  get_value_for<UserDuration>(json_vehicle, "max_travel_time"),
                  get_value_for<UserDistance>(json_vehicle, "max_distance"),
                  get_vehicle_steps(json_vehicle),
-                 get_string(json_vehicle, "type"));
+                 get_string(json_vehicle, "type"),
+                 departure);
 }
 
 inline Location get_task_location(const rapidjson::Value& v,

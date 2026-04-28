@@ -30,22 +30,33 @@ struct VehicleCosts {
   const Cost per_hour;
   const Cost per_km;
   const Cost per_task_hour;
+  const Cost per_wait_hour;
 
   explicit VehicleCosts(UserCost fixed = 0,
                         UserCost per_hour = DEFAULT_COST_PER_HOUR,
                         UserCost per_km = DEFAULT_COST_PER_KM,
-                        UserCost per_task_hour = DEFAULT_COST_PER_TASK_HOUR)
+                        UserCost per_task_hour = DEFAULT_COST_PER_TASK_HOUR,
+                        UserCost per_wait_hour = DEFAULT_COST_PER_WAIT_HOUR)
     : fixed(utils::scale_from_user_cost(fixed)),
       per_hour(static_cast<Cost>(per_hour)),
       per_km(static_cast<Cost>(per_km)),
-      per_task_hour(static_cast<Cost>(per_task_hour)){};
+      per_task_hour(static_cast<Cost>(per_task_hour)),
+      per_wait_hour(static_cast<Cost>(per_wait_hour)){};
 
   friend bool operator==(const VehicleCosts& lhs,
                          const VehicleCosts& rhs) = default;
 
   friend bool operator<(const VehicleCosts& lhs, const VehicleCosts& rhs) {
-    return std::tie(lhs.fixed, lhs.per_hour, lhs.per_km, lhs.per_task_hour) <
-           std::tie(rhs.fixed, rhs.per_hour, rhs.per_km, rhs.per_task_hour);
+    return std::tie(lhs.fixed,
+                    lhs.per_hour,
+                    lhs.per_km,
+                    lhs.per_task_hour,
+                    lhs.per_wait_hour) <
+           std::tie(rhs.fixed,
+                    rhs.per_hour,
+                    rhs.per_km,
+                    rhs.per_task_hour,
+                    rhs.per_wait_hour);
   }
 };
 
@@ -69,6 +80,9 @@ struct Vehicle {
   Index type;
   const std::string type_str;
   std::unordered_map<Id, Index> break_id_to_rank;
+  // Optional latest departure time from depot (internal duration scale):
+  // vehicle may not leave start after this instant (VRPTW depot window l_0).
+  const std::optional<Duration> departure;
 
   Vehicle(
     Id id,
@@ -88,7 +102,8 @@ struct Vehicle {
     const std::optional<UserDistance>& max_distance =
       std::optional<UserDistance>(),
     const std::vector<VehicleStep>& input_steps = std::vector<VehicleStep>(),
-    std::string type_str = NO_TYPE);
+    std::string type_str = NO_TYPE,
+    const std::optional<UserDuration>& departure = std::nullopt);
 
   bool has_start() const;
 
@@ -111,7 +126,20 @@ struct Vehicle {
   }
 
   Eval task_eval(Duration task_duration) const {
-    return Eval(task_cost(task_duration), 0, 0, task_duration);
+    return Eval(task_cost(task_duration), 0, 0, task_duration, 0);
+  }
+
+  // Earliest time the route timeline may begin at depot (depot release e_0).
+  Duration earliest_route_start() const {
+    return tw.start;
+  }
+
+  bool has_latest_departure() const {
+    return departure.has_value();
+  }
+
+  Cost wait_cost(Duration wait_duration) const {
+    return costs.per_wait_hour * wait_duration;
   }
 
   Duration duration(Index i, Index j) const {

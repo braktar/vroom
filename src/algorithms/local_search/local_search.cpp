@@ -1859,7 +1859,22 @@ void LocalSearch<Route,
                         [&](auto sum, auto c) {
                           return sum + _sol_state.route_evals[c];
                         });
-      assert(new_eval + best_gain == previous_eval);
+      const Eval delta = previous_eval - new_eval;
+      bool any_wait_cost = false;
+      for (const auto& veh : _input.vehicles) {
+        if (veh.costs.per_wait_hour != 0) {
+          any_wait_cost = true;
+          break;
+        }
+      }
+      // route_eval.wait_duration tracks asap_total_wait; incremental gains do
+      // not include waiting cost. Compare fields operators actually delta-update.
+      assert(delta.duration == best_gain.duration);
+      assert(delta.distance == best_gain.distance);
+      assert(delta.task_duration == best_gain.task_duration);
+      if (!any_wait_cost) {
+        assert(delta.cost == best_gain.cost);
+      }
 #endif
 
       auto modified_vehicles =

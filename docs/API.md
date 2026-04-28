@@ -125,6 +125,7 @@ A `vehicle` object has the following properties:
 | [`max_travel_time`] | an integer defining the maximum travel time for this vehicle |
 | [`max_distance`] | an integer defining the maximum distance for this vehicle |
 | [`steps`] | an array of `vehicle_step` objects describing a custom route for this vehicle |
+| [`departure`] | optional integer (seconds): **latest** time at which the vehicle may leave the `start` location |
 
 A `cost` object has the following properties:
 
@@ -133,6 +134,7 @@ A `cost` object has the following properties:
 | [`fixed`] | integer defining the cost of using this vehicle in the solution (defaults to `0`) |
 | [`per_hour`] | integer defining the cost for one hour of travel time with this vehicle (defaults to `3600`) |
 | [`per_task_hour`] | integer defining the cost for one hour of task time (setup + service) with this vehicle (defaults to `0`) |
+| [`per_wait_hour`] | integer defining the cost for one hour of waiting time with this vehicle (defaults to `0`) |
 | [`per_km`] | integer defining the cost for one km of travel time with this vehicle (defaults to `0`) |
 
 Using a non-default `per-hour` value means defining travel costs based
@@ -191,6 +193,10 @@ If no custom matrix is provided:
   the same coordinates
 - depending on if custom matrices are provided, required fields follow
   the same logic than for `job` keys `location` and `location_index`
+
+### Depot release in VRPTW
+
+Vehicle `time_window.start` is the **earliest** departure from `start`; optional `departure` is the **latest** departure (within `time_window`). Feasibility relies on propagated earliest dates along routes. **Billable waiting** for `per_wait_hour` is computed on the same schedule as the output: one backward pass picks a depot leave time that limits unnecessary idle downstream; if `departure` is set, the leave time is also bounded by it. A forward pass from that leave time then sums idle time at the depot before departure, plus any waits at breaks and jobs when the vehicle is early and must wait for a window—matching the timeline built by `format_route`.
 
 ### Capacity restrictions
 
