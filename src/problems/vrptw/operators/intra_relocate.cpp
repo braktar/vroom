@@ -35,13 +35,11 @@ void IntraRelocate::compute_gain() {
   nr.erase(nr.begin() + static_cast<std::ptrdiff_t>(s_rank));
   nr.insert(nr.begin() + static_cast<std::ptrdiff_t>(t_rank), moved);
 
-  const Duration dep = utils::min_wait_route_departure(_input, _tw_s_route);
   utils::adjust_stored_gain_for_wait_approx_one_route(_input,
                                                       stored_gain,
                                                       s_vehicle,
                                                       s_route,
-                                                      nr,
-                                                      dep);
+                                                      nr);
 }
 
 bool IntraRelocate::is_valid() {

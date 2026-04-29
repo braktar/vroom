@@ -55,22 +55,21 @@ void RouteSplit::compute_gain() {
     if ((v_s.costs.per_wait_hour != 0 || v_b.costs.per_wait_hour != 0 ||
          v_e.costs.per_wait_hour != 0) &&
         v_s.breaks.empty() && v_b.breaks.empty() && v_e.breaks.empty()) {
-      const Duration dep_s = utils::min_wait_route_departure(_input, _tw_s_route);
-      const Duration dep_b = v_b.earliest_route_start();
-      const Duration dep_e = v_e.earliest_route_start();
-
-      const auto w_full = utils::approx_billable_wait_jobs_only(
-        _input, s_vehicle, s_route, dep_s);
+      const auto w_full =
+        utils::billable_wait_for_job_sequence_aligned_with_route_eval(
+          _input, s_vehicle, s_route);
       std::vector<Index> prefix(s_route.begin(),
                                 s_route.begin() +
                                   static_cast<std::ptrdiff_t>(choice.split_rank));
       std::vector<Index> suffix(
         s_route.begin() + static_cast<std::ptrdiff_t>(choice.split_rank),
         s_route.end());
-      const auto w_prefix = utils::approx_billable_wait_jobs_only(
-        _input, v_begin, prefix, dep_b);
-      const auto w_suffix = utils::approx_billable_wait_jobs_only(
-        _input, v_end, suffix, dep_e);
+      const auto w_prefix =
+        utils::billable_wait_for_job_sequence_aligned_with_route_eval(
+          _input, v_begin, prefix);
+      const auto w_suffix =
+        utils::billable_wait_for_job_sequence_aligned_with_route_eval(
+          _input, v_end, suffix);
       if (w_full.has_value() && w_prefix.has_value() && w_suffix.has_value()) {
         const Cost old_wc = v_s.wait_cost(*w_full);
         const Cost new_wc =

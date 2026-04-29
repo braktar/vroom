@@ -105,6 +105,29 @@ Duration job_action_duration_at(const Input& input,
 
 } // namespace
 
+std::optional<Duration> billable_wait_for_job_sequence_aligned_with_route_eval(
+  const Input& input,
+  Index vehicle_rank,
+  const std::vector<Index>& jobs) {
+  const auto& v = input.vehicles[vehicle_rank];
+  if (!v.breaks.empty()) {
+    return std::nullopt;
+  }
+  if (jobs.empty()) {
+    return Duration{0};
+  }
+  TWRoute tw(input, vehicle_rank, input.get_amount_size());
+  for (const Index jr : jobs) {
+    const Index rank = static_cast<Index>(tw.route.size());
+    if (!tw.is_valid_addition_for_tw(input, jr, rank)) {
+      return std::nullopt;
+    }
+    tw.add(input, jr, rank);
+  }
+  tw.refresh_asap_total_wait_for_eval(input);
+  return tw.asap_total_wait;
+}
+
 std::optional<Duration> approx_billable_wait_jobs_only(
   const Input& input,
   Index vehicle_rank,
@@ -158,11 +181,9 @@ void adjust_stored_gain_for_wait_approx_two_routes(
   Index v1,
   const std::vector<Index>& r1_old,
   const std::vector<Index>& r1_new,
-  Duration dep1,
   Index v2,
   const std::vector<Index>& r2_old,
-  const std::vector<Index>& r2_new,
-  Duration dep2) {
+  const std::vector<Index>& r2_new) {
   const auto& veh1 = input.vehicles[v1];
   const auto& veh2 = input.vehicles[v2];
   if (veh1.costs.per_wait_hour == 0 && veh2.costs.per_wait_hour == 0) {
@@ -172,10 +193,14 @@ void adjust_stored_gain_for_wait_approx_two_routes(
     return;
   }
 
-  const auto w1_old = approx_billable_wait_jobs_only(input, v1, r1_old, dep1);
-  const auto w2_old = approx_billable_wait_jobs_only(input, v2, r2_old, dep2);
-  const auto w1_new = approx_billable_wait_jobs_only(input, v1, r1_new, dep1);
-  const auto w2_new = approx_billable_wait_jobs_only(input, v2, r2_new, dep2);
+  const auto w1_old =
+    billable_wait_for_job_sequence_aligned_with_route_eval(input, v1, r1_old);
+  const auto w2_old =
+    billable_wait_for_job_sequence_aligned_with_route_eval(input, v2, r2_old);
+  const auto w1_new =
+    billable_wait_for_job_sequence_aligned_with_route_eval(input, v1, r1_new);
+  const auto w2_new =
+    billable_wait_for_job_sequence_aligned_with_route_eval(input, v2, r2_new);
   if (!w1_old.has_value() || !w2_old.has_value() || !w1_new.has_value() ||
       !w2_new.has_value()) {
     return;
@@ -189,14 +214,15 @@ void adjust_stored_gain_for_wait_approx_one_route(const Input& input,
                                                   Eval& stored_gain,
                                                   Index v,
                                                   const std::vector<Index>& r_old,
-                                                  const std::vector<Index>& r_new,
-                                                  Duration dep) {
+                                                  const std::vector<Index>& r_new) {
   const auto& veh = input.vehicles[v];
   if (veh.costs.per_wait_hour == 0 || !veh.breaks.empty()) {
     return;
   }
-  const auto w_old = approx_billable_wait_jobs_only(input, v, r_old, dep);
-  const auto w_new = approx_billable_wait_jobs_only(input, v, r_new, dep);
+  const auto w_old =
+    billable_wait_for_job_sequence_aligned_with_route_eval(input, v, r_old);
+  const auto w_new =
+    billable_wait_for_job_sequence_aligned_with_route_eval(input, v, r_new);
   if (!w_old.has_value() || !w_new.has_value()) {
     return;
   }

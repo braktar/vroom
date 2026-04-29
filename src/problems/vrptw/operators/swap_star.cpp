@@ -16,7 +16,7 @@ namespace vroom::vrptw {
 
 namespace {
 
-// Mirror cvrp::SwapStar::apply route mutations on copies (for wait approx).
+// Mirror cvrp::SwapStar::apply route mutations on copies (for wait adjustment).
 void apply_swap_star_to_copies(std::vector<Index>& ns,
                                std::vector<Index>& nt,
                                const ls::SwapChoice& ch) {
@@ -87,18 +87,14 @@ void SwapStar::compute_gain() {
     auto nt = t_route;
     apply_swap_star_to_copies(ns, nt, choice);
 
-    const Duration dep_s = utils::min_wait_route_departure(_input, _tw_s_route);
-    const Duration dep_t = utils::min_wait_route_departure(_input, _tw_t_route);
     utils::adjust_stored_gain_for_wait_approx_two_routes(_input,
                                                          stored_gain,
                                                          s_vehicle,
                                                          s_route,
                                                          ns,
-                                                         dep_s,
                                                          t_vehicle,
                                                          t_route,
-                                                         nt,
-                                                         dep_t);
+                                                         nt);
   }
   gain_computed = true;
 }

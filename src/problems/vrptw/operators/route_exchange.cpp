@@ -33,18 +33,14 @@ RouteExchange::RouteExchange(const Input& input,
 void RouteExchange::compute_gain() {
   cvrp::RouteExchange::compute_gain();
 
-  const Duration dep_s = utils::min_wait_route_departure(_input, _tw_s_route);
-  const Duration dep_t = utils::min_wait_route_departure(_input, _tw_t_route);
   utils::adjust_stored_gain_for_wait_approx_two_routes(_input,
                                                        stored_gain,
                                                        s_vehicle,
                                                        s_route,
                                                        t_route,
-                                                       dep_s,
                                                        t_vehicle,
                                                        t_route,
-                                                       s_route,
-                                                       dep_t);
+                                                       s_route);
 }
 
 bool RouteExchange::is_valid() {

@@ -196,7 +196,7 @@ If no custom matrix is provided:
 
 ### Depot release in VRPTW
 
-Vehicle `time_window.start` is the **earliest** departure from `start`; optional `departure` is the **latest** departure (within `time_window`). Feasibility relies on propagated earliest dates along routes. **Billable waiting** for `per_wait_hour` is computed on the same schedule as the output: one backward pass picks a depot leave time that limits unnecessary idle downstream; if `departure` is set, the leave time is also bounded by it. A forward pass from that leave time then sums idle time at the depot before departure, plus any waits at breaks and jobs when the vehicle is early and must wait for a window—matching the timeline built by `format_route`.
+Vehicle `time_window.start` is the **earliest** departure from `start`; optional `departure` is the **latest** departure (within `time_window`). Feasibility relies on propagated earliest dates along routes. **Billable waiting** for `per_wait_hour` is computed on the same schedule as the output: one backward pass picks a depot leave time that limits unnecessary idle downstream; if `departure` is set, the leave time is also bounded by it. A forward pass from that leave time then sums idle time at the depot before departure, plus any waits at breaks and jobs when the vehicle is early and must wait for a window—matching the timeline built by `format_route`. VRPTW local search uses this same billable-wait notion to adjust move gains when `per_wait_hour` is non-zero on the relevant vehicles and those vehicles have no breaks (vehicles with mandatory breaks skip this gain adjustment).
 
 ### Capacity restrictions
 

@@ -50,18 +50,14 @@ void ReverseTwoOpt::compute_gain() {
            nt.begin() + static_cast<std::ptrdiff_t>(nb_source) +
              static_cast<std::ptrdiff_t>(t_rank) + 1);
 
-  const Duration dep_s = utils::min_wait_route_departure(_input, _tw_s_route);
-  const Duration dep_t = utils::min_wait_route_departure(_input, _tw_t_route);
   utils::adjust_stored_gain_for_wait_approx_two_routes(_input,
                                                        stored_gain,
                                                        s_vehicle,
                                                        s_route,
                                                        ns,
-                                                       dep_s,
                                                        t_vehicle,
                                                        t_route,
-                                                       nt,
-                                                       dep_t);
+                                                       nt);
 }
 
 bool ReverseTwoOpt::is_valid() {

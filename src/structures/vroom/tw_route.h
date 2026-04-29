@@ -212,6 +212,12 @@ public:
             rank + count);
   };
 
+  // Recompute asap_total_wait (per_wait_hour) from the current route using
+  // the same rules as route evaluation. Used after building a scratch route.
+  void refresh_asap_total_wait_for_eval(const Input& input) {
+    recompute_asap_total_wait(input);
+  }
+
   // Add the range [first_job; last_job) in the existing route at rank
   // first_rank and before last_rank *in place of* the current jobs
   // that may be there. "delivery" is the amount delivered in single

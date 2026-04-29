@@ -1,0 +1,35 @@
+{
+  "vehicles": [
+    {
+      "id": 1,
+      "profile": "car",
+      "start_index": 0,
+      "end_index": 0,
+      "time_window": [0, 200000],
+      "costs": {
+        "fixed": 0,
+        "per_hour": 3600,
+        "per_km": 0,
+        "per_task_hour": 0,
+        "per_wait_hour": 3600
+      }
+    }
+  ],
+  "jobs": [
+    {
+      "id": 10,
+      "location_index": 1,
+      "service": 0,
+      "time_windows": [[8000, 200000]]
+    }
+  ],
+  "matrices": {
+    "car": {
+      "durations": [
+        [0, 100, 200],
+        [100, 0, 100],
+        [200, 100, 0]
+      ]
+    }
+  }
+}

@@ -684,26 +684,34 @@ std::optional<Duration> approx_billable_wait_jobs_only(
   const std::vector<Index>& route,
   Duration fixed_departure);
 
-// VRPTW local search: add approximate (old_wait - new_wait) to gain.cost for
-// vehicles with per_wait_hour and no breaks. No-op if approximation is undefined.
+// Billable wait duration for `jobs` in order on `vehicle_rank`, aligned with
+// route evaluation: scratch TWRoute built with sequential adds, then
+// refresh_asap_total_wait_for_eval (backward min depot leave + forward waits).
+// Skips vehicles with breaks. nullopt if TW infeasible for that sequence.
+std::optional<Duration> billable_wait_for_job_sequence_aligned_with_route_eval(
+  const Input& input,
+  Index vehicle_rank,
+  const std::vector<Index>& jobs);
+
+// VRPTW local search: add (old_wait_cost - new_wait_cost) to gain.cost for
+// vehicles with per_wait_hour and no breaks. Wait is computed with
+// billable_wait_for_job_sequence_aligned_with_route_eval. No-op if undefined
+// for any sequence (infeasible TW or vehicle has breaks).
 void adjust_stored_gain_for_wait_approx_two_routes(
   const Input& input,
   Eval& stored_gain,
   Index v1,
   const std::vector<Index>& r1_old,
   const std::vector<Index>& r1_new,
-  Duration dep1,
   Index v2,
   const std::vector<Index>& r2_old,
-  const std::vector<Index>& r2_new,
-  Duration dep2);
+  const std::vector<Index>& r2_new);
 
 void adjust_stored_gain_for_wait_approx_one_route(const Input& input,
                                                   Eval& stored_gain,
                                                   Index v,
                                                   const std::vector<Index>& r_old,
-                                                  const std::vector<Index>& r_new,
-                                                  Duration dep);
+                                                  const std::vector<Index>& r_new);
 
 void check_tws(const std::vector<TimeWindow>& tws,
                Id id,
