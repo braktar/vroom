@@ -8,6 +8,7 @@ All rights reserved (see LICENSE).
 */
 
 #include "problems/vrptw/operators/route_split.h"
+#include "utils/helpers.h"
 
 namespace vroom::vrptw {
 
@@ -45,6 +46,38 @@ void RouteSplit::compute_gain() {
     // back to initial vehicle ranks in _sol.
     _begin_route_rank = _empty_route_ranks[choice.v_begin];
     _end_route_rank = _empty_route_ranks[choice.v_end];
+
+    const Index v_begin = _begin_route_rank;
+    const Index v_end = _end_route_rank;
+    const auto& v_s = _input.vehicles[s_vehicle];
+    const auto& v_b = _input.vehicles[v_begin];
+    const auto& v_e = _input.vehicles[v_end];
+    if ((v_s.costs.per_wait_hour != 0 || v_b.costs.per_wait_hour != 0 ||
+         v_e.costs.per_wait_hour != 0) &&
+        v_s.breaks.empty() && v_b.breaks.empty() && v_e.breaks.empty()) {
+      const Duration dep_s = utils::min_wait_route_departure(_input, _tw_s_route);
+      const Duration dep_b = v_b.earliest_route_start();
+      const Duration dep_e = v_e.earliest_route_start();
+
+      const auto w_full = utils::approx_billable_wait_jobs_only(
+        _input, s_vehicle, s_route, dep_s);
+      std::vector<Index> prefix(s_route.begin(),
+                                s_route.begin() +
+                                  static_cast<std::ptrdiff_t>(choice.split_rank));
+      std::vector<Index> suffix(
+        s_route.begin() + static_cast<std::ptrdiff_t>(choice.split_rank),
+        s_route.end());
+      const auto w_prefix = utils::approx_billable_wait_jobs_only(
+        _input, v_begin, prefix, dep_b);
+      const auto w_suffix = utils::approx_billable_wait_jobs_only(
+        _input, v_end, suffix, dep_e);
+      if (w_full.has_value() && w_prefix.has_value() && w_suffix.has_value()) {
+        const Cost old_wc = v_s.wait_cost(*w_full);
+        const Cost new_wc =
+          v_b.wait_cost(*w_prefix) + v_e.wait_cost(*w_suffix);
+        stored_gain.cost += old_wc - new_wc;
+      }
+    }
   }
   gain_computed = true;
 }

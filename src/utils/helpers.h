@@ -16,6 +16,7 @@ All rights reserved (see LICENSE).
 #include <vector>
 
 #include "structures/typedefs.h"
+#include "structures/vroom/eval.h"
 #include "structures/vroom/raw_route.h"
 #include "structures/vroom/solution_state.h"
 #include "structures/vroom/tw_route.h"
@@ -673,6 +674,36 @@ Priority priority_sum_for_route(const Input& input,
 Eval route_eval_for_vehicle(const Input& input,
                             Index vehicle_rank,
                             const std::vector<Index>& route);
+
+// Approximate billable wait: depot slack plus waits at jobs, forward from
+// fixed_departure without backward re-optimization on `route`. Skips vehicles
+// with breaks. nullopt if a job time window cannot absorb forward time.
+std::optional<Duration> approx_billable_wait_jobs_only(
+  const Input& input,
+  Index vehicle_rank,
+  const std::vector<Index>& route,
+  Duration fixed_departure);
+
+// VRPTW local search: add approximate (old_wait - new_wait) to gain.cost for
+// vehicles with per_wait_hour and no breaks. No-op if approximation is undefined.
+void adjust_stored_gain_for_wait_approx_two_routes(
+  const Input& input,
+  Eval& stored_gain,
+  Index v1,
+  const std::vector<Index>& r1_old,
+  const std::vector<Index>& r1_new,
+  Duration dep1,
+  Index v2,
+  const std::vector<Index>& r2_old,
+  const std::vector<Index>& r2_new,
+  Duration dep2);
+
+void adjust_stored_gain_for_wait_approx_one_route(const Input& input,
+                                                  Eval& stored_gain,
+                                                  Index v,
+                                                  const std::vector<Index>& r_old,
+                                                  const std::vector<Index>& r_new,
+                                                  Duration dep);
 
 void check_tws(const std::vector<TimeWindow>& tws,
                Id id,

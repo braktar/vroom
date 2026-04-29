@@ -18,6 +18,8 @@ class IntraRelocate : public cvrp::IntraRelocate {
 private:
   TWRoute& _tw_s_route;
 
+  void compute_gain() override;
+
 public:
   IntraRelocate(const Input& input,
                 const utils::SolutionState& sol_state,

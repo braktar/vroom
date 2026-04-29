@@ -8,6 +8,9 @@ All rights reserved (see LICENSE).
 */
 
 #include "problems/vrptw/operators/unassigned_exchange.h"
+#include <algorithm>
+
+#include "utils/helpers.h"
 
 namespace vroom::vrptw {
 
@@ -28,6 +31,22 @@ UnassignedExchange::UnassignedExchange(const Input& input,
                              t_rank,
                              u),
     _tw_s_route(tw_s_route) {
+}
+
+void UnassignedExchange::compute_gain() {
+  cvrp::UnassignedExchange::compute_gain();
+
+  auto nr = s_route;
+  std::copy(_moved_jobs.begin(),
+            _moved_jobs.end(),
+            nr.begin() + static_cast<std::ptrdiff_t>(_first_rank));
+  const Duration dep = utils::min_wait_route_departure(_input, _tw_s_route);
+  utils::adjust_stored_gain_for_wait_approx_one_route(_input,
+                                                      stored_gain,
+                                                      s_vehicle,
+                                                      s_route,
+                                                      nr,
+                                                      dep);
 }
 
 bool UnassignedExchange::is_valid() {

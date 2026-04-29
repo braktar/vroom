@@ -8,6 +8,7 @@ All rights reserved (see LICENSE).
 */
 
 #include "problems/vrptw/operators/cross_exchange.h"
+#include "utils/helpers.h"
 
 namespace vroom::vrptw {
 
@@ -33,6 +34,34 @@ CrossExchange::CrossExchange(const Input& input,
                         check_t_reverse),
     _tw_s_route(tw_s_route),
     _tw_t_route(tw_t_route) {
+}
+
+void CrossExchange::compute_gain() {
+  cvrp::CrossExchange::compute_gain();
+
+  auto ns = s_route;
+  auto nt = t_route;
+  std::swap(ns[s_rank], nt[t_rank]);
+  std::swap(ns[s_rank + 1], nt[t_rank + 1]);
+  if (reverse_s_edge) {
+    std::swap(nt[t_rank], nt[t_rank + 1]);
+  }
+  if (reverse_t_edge) {
+    std::swap(ns[s_rank], ns[s_rank + 1]);
+  }
+
+  const Duration dep_s = utils::min_wait_route_departure(_input, _tw_s_route);
+  const Duration dep_t = utils::min_wait_route_departure(_input, _tw_t_route);
+  utils::adjust_stored_gain_for_wait_approx_two_routes(_input,
+                                                       stored_gain,
+                                                       s_vehicle,
+                                                       s_route,
+                                                       ns,
+                                                       dep_s,
+                                                       t_vehicle,
+                                                       t_route,
+                                                       nt,
+                                                       dep_t);
 }
 
 bool CrossExchange::is_valid() {

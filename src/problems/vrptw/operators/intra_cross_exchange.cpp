@@ -8,6 +8,9 @@ All rights reserved (see LICENSE).
 */
 
 #include "problems/vrptw/operators/intra_cross_exchange.h"
+#include <algorithm>
+
+#include "utils/helpers.h"
 
 namespace vroom::vrptw {
 
@@ -28,6 +31,29 @@ IntraCrossExchange::IntraCrossExchange(const Input& input,
                              check_s_reverse,
                              check_t_reverse),
     _tw_s_route(tw_s_route) {
+}
+
+void IntraCrossExchange::compute_gain() {
+  cvrp::IntraCrossExchange::compute_gain();
+
+  auto moved = _moved_jobs;
+  if (reverse_t_edge) {
+    std::swap(moved[0], moved[1]);
+  }
+  if (reverse_s_edge) {
+    std::swap(moved[moved.size() - 2], moved[moved.size() - 1]);
+  }
+  auto nr = s_route;
+  std::copy(moved.begin(),
+            moved.end(),
+            nr.begin() + static_cast<std::ptrdiff_t>(_first_rank));
+  const Duration dep = utils::min_wait_route_departure(_input, _tw_s_route);
+  utils::adjust_stored_gain_for_wait_approx_one_route(_input,
+                                                      stored_gain,
+                                                      s_vehicle,
+                                                      s_route,
+                                                      nr,
+                                                      dep);
 }
 
 bool IntraCrossExchange::is_valid() {

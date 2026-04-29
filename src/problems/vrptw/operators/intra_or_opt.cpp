@@ -8,6 +8,9 @@ All rights reserved (see LICENSE).
 */
 
 #include "problems/vrptw/operators/intra_or_opt.h"
+#include <algorithm>
+
+#include "utils/helpers.h"
 
 namespace vroom::vrptw {
 
@@ -26,6 +29,26 @@ IntraOrOpt::IntraOrOpt(const Input& input,
                      t_rank,
                      check_reverse),
     _tw_s_route(tw_s_route) {
+}
+
+void IntraOrOpt::compute_gain() {
+  cvrp::IntraOrOpt::compute_gain();
+
+  auto moved = _moved_jobs;
+  if (reverse_s_edge) {
+    std::swap(moved[_s_edge_first], moved[_s_edge_last]);
+  }
+  auto nr = s_route;
+  std::copy(moved.begin(),
+            moved.end(),
+            nr.begin() + static_cast<std::ptrdiff_t>(_first_rank));
+  const Duration dep = utils::min_wait_route_departure(_input, _tw_s_route);
+  utils::adjust_stored_gain_for_wait_approx_one_route(_input,
+                                                      stored_gain,
+                                                      s_vehicle,
+                                                      s_route,
+                                                      nr,
+                                                      dep);
 }
 
 bool IntraOrOpt::is_valid() {

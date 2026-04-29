@@ -18,6 +18,8 @@ class IntraOrOpt : public cvrp::IntraOrOpt {
 private:
   TWRoute& _tw_s_route;
 
+  void compute_gain() override;
+
 public:
   IntraOrOpt(const Input& input,
              const utils::SolutionState& sol_state,

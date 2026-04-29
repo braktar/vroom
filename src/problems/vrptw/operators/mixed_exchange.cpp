@@ -8,6 +8,7 @@ All rights reserved (see LICENSE).
 */
 
 #include "problems/vrptw/operators/mixed_exchange.h"
+#include "utils/helpers.h"
 
 namespace vroom::vrptw {
 
@@ -31,6 +32,34 @@ MixedExchange::MixedExchange(const Input& input,
                         check_t_reverse),
     _tw_s_route(tw_s_route),
     _tw_t_route(tw_t_route) {
+}
+
+void MixedExchange::compute_gain() {
+  cvrp::MixedExchange::compute_gain();
+
+  auto ns = s_route;
+  auto nt = t_route;
+  std::swap(ns[s_rank], nt[t_rank]);
+  ns.insert(ns.begin() + static_cast<std::ptrdiff_t>(s_rank) + 1,
+            nt.begin() + static_cast<std::ptrdiff_t>(t_rank) + 1,
+            nt.begin() + static_cast<std::ptrdiff_t>(t_rank) + 2);
+  nt.erase(nt.begin() + static_cast<std::ptrdiff_t>(t_rank) + 1);
+  if (reverse_t_edge) {
+    std::swap(ns[s_rank], ns[s_rank + 1]);
+  }
+
+  const Duration dep_s = utils::min_wait_route_departure(_input, _tw_s_route);
+  const Duration dep_t = utils::min_wait_route_departure(_input, _tw_t_route);
+  utils::adjust_stored_gain_for_wait_approx_two_routes(_input,
+                                                       stored_gain,
+                                                       s_vehicle,
+                                                       s_route,
+                                                       ns,
+                                                       dep_s,
+                                                       t_vehicle,
+                                                       t_route,
+                                                       nt,
+                                                       dep_t);
 }
 
 bool MixedExchange::is_valid() {

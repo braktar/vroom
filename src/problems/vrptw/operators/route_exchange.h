@@ -22,6 +22,8 @@ private:
   const Amount _source_job_deliveries_sum;
   const Amount _target_job_deliveries_sum;
 
+  void compute_gain() override;
+
 public:
   RouteExchange(const Input& input,
                 const utils::SolutionState& sol_state,

@@ -10,6 +10,7 @@ All rights reserved (see LICENSE).
 #include <algorithm>
 #include <chrono>
 #include <numeric>
+#include <optional>
 #include <sstream>
 
 #include "utils/helpers.h"
@@ -81,6 +82,125 @@ Eval route_eval_for_vehicle(const Input& input,
   }
 
   return eval;
+}
+
+namespace {
+
+Duration job_action_duration_at(const Input& input,
+                                const Vehicle& v,
+                                const std::vector<Index>& route,
+                                Index job_rank) {
+  const auto& j = input.jobs[route[job_rank]];
+  if (job_rank == 0) {
+    const bool same_loc =
+      v.has_start() && v.start.value().index() == j.index();
+    return same_loc ? j.services[v.type]
+                    : j.setups[v.type] + j.services[v.type];
+  }
+  const bool same_loc =
+    input.jobs[route[job_rank - 1]].index() == j.index();
+  return same_loc ? j.services[v.type]
+                  : j.setups[v.type] + j.services[v.type];
+}
+
+} // namespace
+
+std::optional<Duration> approx_billable_wait_jobs_only(
+  const Input& input,
+  Index vehicle_rank,
+  const std::vector<Index>& route,
+  Duration fixed_departure) {
+  const auto& v = input.vehicles[vehicle_rank];
+  if (!v.breaks.empty()) {
+    return std::nullopt;
+  }
+  if (route.empty()) {
+    return Duration{0};
+  }
+
+  const Duration e0 = v.earliest_route_start();
+  fixed_departure = std::max(fixed_departure, e0);
+
+  Duration total = fixed_departure - e0;
+  Duration current = fixed_departure;
+
+  for (Index i = 0; i < static_cast<Index>(route.size()); ++i) {
+    const auto& next_j = input.jobs[route[i]];
+
+    const Duration travel_time =
+      (i == 0) ? (v.has_start() ? v.duration(v.start.value().index(),
+                                              next_j.index())
+                                : Duration{0})
+               : v.duration(input.jobs[route[i - 1]].index(), next_j.index());
+
+    const Duration previous_action_time =
+      (i == 0) ? Duration{0}
+               : job_action_duration_at(input, v, route, i - 1);
+
+    current += previous_action_time + travel_time;
+    const auto j_tw = std::ranges::find_if(next_j.tws, [&](const auto& tw) {
+      return current <= tw.end;
+    });
+    if (j_tw == next_j.tws.end()) {
+      return std::nullopt;
+    }
+
+    total += std::max(static_cast<Duration>(0), j_tw->start - current);
+    current = std::max(current, j_tw->start);
+  }
+
+  return total;
+}
+
+void adjust_stored_gain_for_wait_approx_two_routes(
+  const Input& input,
+  Eval& stored_gain,
+  Index v1,
+  const std::vector<Index>& r1_old,
+  const std::vector<Index>& r1_new,
+  Duration dep1,
+  Index v2,
+  const std::vector<Index>& r2_old,
+  const std::vector<Index>& r2_new,
+  Duration dep2) {
+  const auto& veh1 = input.vehicles[v1];
+  const auto& veh2 = input.vehicles[v2];
+  if (veh1.costs.per_wait_hour == 0 && veh2.costs.per_wait_hour == 0) {
+    return;
+  }
+  if (!veh1.breaks.empty() || !veh2.breaks.empty()) {
+    return;
+  }
+
+  const auto w1_old = approx_billable_wait_jobs_only(input, v1, r1_old, dep1);
+  const auto w2_old = approx_billable_wait_jobs_only(input, v2, r2_old, dep2);
+  const auto w1_new = approx_billable_wait_jobs_only(input, v1, r1_new, dep1);
+  const auto w2_new = approx_billable_wait_jobs_only(input, v2, r2_new, dep2);
+  if (!w1_old.has_value() || !w2_old.has_value() || !w1_new.has_value() ||
+      !w2_new.has_value()) {
+    return;
+  }
+  const Cost old_wc = veh1.wait_cost(*w1_old) + veh2.wait_cost(*w2_old);
+  const Cost new_wc = veh1.wait_cost(*w1_new) + veh2.wait_cost(*w2_new);
+  stored_gain.cost += old_wc - new_wc;
+}
+
+void adjust_stored_gain_for_wait_approx_one_route(const Input& input,
+                                                  Eval& stored_gain,
+                                                  Index v,
+                                                  const std::vector<Index>& r_old,
+                                                  const std::vector<Index>& r_new,
+                                                  Duration dep) {
+  const auto& veh = input.vehicles[v];
+  if (veh.costs.per_wait_hour == 0 || !veh.breaks.empty()) {
+    return;
+  }
+  const auto w_old = approx_billable_wait_jobs_only(input, v, r_old, dep);
+  const auto w_new = approx_billable_wait_jobs_only(input, v, r_new, dep);
+  if (!w_old.has_value() || !w_new.has_value()) {
+    return;
+  }
+  stored_gain.cost += veh.wait_cost(*w_old) - veh.wait_cost(*w_new);
 }
 
 #ifndef NDEBUG

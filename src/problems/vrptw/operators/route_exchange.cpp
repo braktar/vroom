@@ -8,6 +8,7 @@ All rights reserved (see LICENSE).
 */
 
 #include "problems/vrptw/operators/route_exchange.h"
+#include "utils/helpers.h"
 
 namespace vroom::vrptw {
 
@@ -27,6 +28,23 @@ RouteExchange::RouteExchange(const Input& input,
     _tw_t_route(tw_t_route),
     _source_job_deliveries_sum(source.job_deliveries_sum()),
     _target_job_deliveries_sum(target.job_deliveries_sum()) {
+}
+
+void RouteExchange::compute_gain() {
+  cvrp::RouteExchange::compute_gain();
+
+  const Duration dep_s = utils::min_wait_route_departure(_input, _tw_s_route);
+  const Duration dep_t = utils::min_wait_route_departure(_input, _tw_t_route);
+  utils::adjust_stored_gain_for_wait_approx_two_routes(_input,
+                                                       stored_gain,
+                                                       s_vehicle,
+                                                       s_route,
+                                                       t_route,
+                                                       dep_s,
+                                                       t_vehicle,
+                                                       t_route,
+                                                       s_route,
+                                                       dep_t);
 }
 
 bool RouteExchange::is_valid() {

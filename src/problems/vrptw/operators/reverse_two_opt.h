@@ -19,6 +19,8 @@ private:
   TWRoute& _tw_s_route;
   TWRoute& _tw_t_route;
 
+  void compute_gain() override;
+
 public:
   ReverseTwoOpt(const Input& input,
                 const utils::SolutionState& sol_state,

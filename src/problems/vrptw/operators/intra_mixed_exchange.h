@@ -18,6 +18,8 @@ class IntraMixedExchange : public cvrp::IntraMixedExchange {
 private:
   TWRoute& _tw_s_route;
 
+  void compute_gain() override;
+
 public:
   IntraMixedExchange(const Input& input,
                      const utils::SolutionState& sol_state,

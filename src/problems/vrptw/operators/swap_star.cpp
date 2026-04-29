@@ -7,9 +7,52 @@ All rights reserved (see LICENSE).
 
 */
 
+#include <algorithm>
+
 #include "problems/vrptw/operators/swap_star.h"
+#include "utils/helpers.h"
 
 namespace vroom::vrptw {
+
+namespace {
+
+// Mirror cvrp::SwapStar::apply route mutations on copies (for wait approx).
+void apply_swap_star_to_copies(std::vector<Index>& ns,
+                               std::vector<Index>& nt,
+                               const ls::SwapChoice& ch) {
+  const auto s_value = ns[ch.s_rank];
+  const auto t_value = nt[ch.t_rank];
+
+  if (ch.s_rank == ch.insertion_in_source) {
+    ns[ch.s_rank] = t_value;
+  } else if (ch.s_rank < ch.insertion_in_source) {
+    std::copy(ns.begin() + static_cast<std::ptrdiff_t>(ch.s_rank) + 1,
+              ns.begin() + static_cast<std::ptrdiff_t>(ch.insertion_in_source),
+              ns.begin() + static_cast<std::ptrdiff_t>(ch.s_rank));
+    ns[ch.insertion_in_source - 1] = t_value;
+  } else {
+    std::copy(ns.rend() - static_cast<std::ptrdiff_t>(ch.s_rank),
+              ns.rend() - static_cast<std::ptrdiff_t>(ch.insertion_in_source),
+              ns.rend() - static_cast<std::ptrdiff_t>(ch.s_rank) - 1);
+    ns[ch.insertion_in_source] = t_value;
+  }
+
+  if (ch.t_rank == ch.insertion_in_target) {
+    nt[ch.t_rank] = s_value;
+  } else if (ch.t_rank < ch.insertion_in_target) {
+    std::copy(nt.begin() + static_cast<std::ptrdiff_t>(ch.t_rank) + 1,
+              nt.begin() + static_cast<std::ptrdiff_t>(ch.insertion_in_target),
+              nt.begin() + static_cast<std::ptrdiff_t>(ch.t_rank));
+    nt[ch.insertion_in_target - 1] = s_value;
+  } else {
+    std::copy(nt.rend() - static_cast<std::ptrdiff_t>(ch.t_rank),
+              nt.rend() - static_cast<std::ptrdiff_t>(ch.insertion_in_target),
+              nt.rend() - static_cast<std::ptrdiff_t>(ch.t_rank) - 1);
+    nt[ch.insertion_in_target] = s_value;
+  }
+}
+
+} // namespace
 
 SwapStar::SwapStar(const Input& input,
                    const utils::SolutionState& sol_state,
@@ -30,8 +73,6 @@ SwapStar::SwapStar(const Input& input,
 }
 
 void SwapStar::compute_gain() {
-  // Similar to cvrp::SwapStar::compute_gain but makes sure to trigger
-  // ls::compute_best_swap_star_choice<TWRoute>.
   choice = ls::compute_best_swap_star_choice(_input,
                                              _sol_state,
                                              s_vehicle,
@@ -41,6 +82,23 @@ void SwapStar::compute_gain() {
                                              _best_known_gain);
   if (choice.gain.cost > 0) {
     stored_gain = choice.gain;
+
+    auto ns = s_route;
+    auto nt = t_route;
+    apply_swap_star_to_copies(ns, nt, choice);
+
+    const Duration dep_s = utils::min_wait_route_departure(_input, _tw_s_route);
+    const Duration dep_t = utils::min_wait_route_departure(_input, _tw_t_route);
+    utils::adjust_stored_gain_for_wait_approx_two_routes(_input,
+                                                         stored_gain,
+                                                         s_vehicle,
+                                                         s_route,
+                                                         ns,
+                                                         dep_s,
+                                                         t_vehicle,
+                                                         t_route,
+                                                         nt,
+                                                         dep_t);
   }
   gain_computed = true;
 }

@@ -18,6 +18,8 @@ class UnassignedExchange : public cvrp::UnassignedExchange {
 private:
   TWRoute& _tw_s_route;
 
+  void compute_gain() override;
+
 public:
   UnassignedExchange(const Input& input,
                      const utils::SolutionState& sol_state,

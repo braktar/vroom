@@ -8,6 +8,9 @@ All rights reserved (see LICENSE).
 */
 
 #include "problems/vrptw/operators/intra_two_opt.h"
+#include <algorithm>
+
+#include "utils/helpers.h"
 
 namespace vroom::vrptw {
 
@@ -24,6 +27,21 @@ IntraTwoOpt::IntraTwoOpt(const Input& input,
                       s_rank,
                       t_rank),
     _tw_s_route(tw_s_route) {
+}
+
+void IntraTwoOpt::compute_gain() {
+  cvrp::IntraTwoOpt::compute_gain();
+
+  auto nr = s_route;
+  std::reverse(nr.begin() + static_cast<std::ptrdiff_t>(s_rank),
+               nr.begin() + static_cast<std::ptrdiff_t>(t_rank) + 1);
+  const Duration dep = utils::min_wait_route_departure(_input, _tw_s_route);
+  utils::adjust_stored_gain_for_wait_approx_one_route(_input,
+                                                      stored_gain,
+                                                      s_vehicle,
+                                                      s_route,
+                                                      nr,
+                                                      dep);
 }
 
 bool IntraTwoOpt::is_valid() {

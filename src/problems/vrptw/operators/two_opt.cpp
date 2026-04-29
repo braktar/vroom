@@ -8,6 +8,7 @@ All rights reserved (see LICENSE).
 */
 
 #include "problems/vrptw/operators/two_opt.h"
+#include "utils/helpers.h"
 
 namespace vroom::vrptw {
 
@@ -29,6 +30,38 @@ TwoOpt::TwoOpt(const Input& input,
                  t_rank),
     _tw_s_route(tw_s_route),
     _tw_t_route(tw_t_route) {
+}
+
+void TwoOpt::compute_gain() {
+  cvrp::TwoOpt::compute_gain();
+
+  auto ns = s_route;
+  auto nt = t_route;
+  const auto nb_source = ns.size() - 1 - s_rank;
+  nt.insert(nt.begin() + static_cast<std::ptrdiff_t>(t_rank) + 1,
+            ns.begin() + static_cast<std::ptrdiff_t>(s_rank) + 1,
+            ns.end());
+  ns.erase(ns.begin() + static_cast<std::ptrdiff_t>(s_rank) + 1, ns.end());
+  ns.insert(ns.end(),
+            nt.begin() + static_cast<std::ptrdiff_t>(t_rank) + 1 +
+              static_cast<std::ptrdiff_t>(nb_source),
+            nt.end());
+  nt.erase(nt.begin() + static_cast<std::ptrdiff_t>(t_rank) + 1 +
+             static_cast<std::ptrdiff_t>(nb_source),
+           nt.end());
+
+  const Duration dep_s = utils::min_wait_route_departure(_input, _tw_s_route);
+  const Duration dep_t = utils::min_wait_route_departure(_input, _tw_t_route);
+  utils::adjust_stored_gain_for_wait_approx_two_routes(_input,
+                                                       stored_gain,
+                                                       s_vehicle,
+                                                       s_route,
+                                                       ns,
+                                                       dep_s,
+                                                       t_vehicle,
+                                                       t_route,
+                                                       nt,
+                                                       dep_t);
 }
 
 bool TwoOpt::is_valid() {

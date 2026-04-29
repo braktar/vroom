@@ -8,6 +8,7 @@ All rights reserved (see LICENSE).
 */
 
 #include "problems/vrptw/operators/intra_relocate.h"
+#include "utils/helpers.h"
 
 namespace vroom::vrptw {
 
@@ -24,6 +25,23 @@ IntraRelocate::IntraRelocate(const Input& input,
                         s_rank,
                         t_rank),
     _tw_s_route(tw_s_route) {
+}
+
+void IntraRelocate::compute_gain() {
+  cvrp::IntraRelocate::compute_gain();
+
+  auto nr = s_route;
+  const auto moved = nr[s_rank];
+  nr.erase(nr.begin() + static_cast<std::ptrdiff_t>(s_rank));
+  nr.insert(nr.begin() + static_cast<std::ptrdiff_t>(t_rank), moved);
+
+  const Duration dep = utils::min_wait_route_departure(_input, _tw_s_route);
+  utils::adjust_stored_gain_for_wait_approx_one_route(_input,
+                                                      stored_gain,
+                                                      s_vehicle,
+                                                      s_route,
+                                                      nr,
+                                                      dep);
 }
 
 bool IntraRelocate::is_valid() {

@@ -18,6 +18,8 @@ class IntraExchange : public cvrp::IntraExchange {
 private:
   TWRoute& _tw_s_route;
 
+  void compute_gain() override;
+
 public:
   IntraExchange(const Input& input,
                 const utils::SolutionState& sol_state,
