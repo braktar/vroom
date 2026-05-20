@@ -48,13 +48,27 @@ void IntraRelocate::compute_gain() {
 }
 
 bool IntraRelocate::is_valid() {
-  return cvrp::IntraRelocate::is_valid() &&
-         _tw_s_route.is_valid_addition_for_tw(_input,
-                                              _delivery,
-                                              _moved_jobs.begin(),
-                                              _moved_jobs.end(),
-                                              _first_rank,
-                                              _last_rank);
+  if (!cvrp::IntraRelocate::is_valid() ||
+      !_tw_s_route.is_valid_addition_for_tw(_input,
+                                            _delivery,
+                                            _moved_jobs.begin(),
+                                            _moved_jobs.end(),
+                                            _first_rank,
+                                            _last_rank)) {
+    return false;
+  }
+
+  if (_input.vehicles[s_vehicle].max_duration == DEFAULT_MAX_DURATION) {
+    return true;
+  }
+
+  auto route_after = s_route;
+  const auto moved = route_after[s_rank];
+  route_after.erase(route_after.begin() + static_cast<std::ptrdiff_t>(s_rank));
+  route_after.insert(route_after.begin() + static_cast<std::ptrdiff_t>(t_rank),
+                     moved);
+
+  return utils::route_jobs_within_max_duration(_input, s_vehicle, route_after);
 }
 
 void IntraRelocate::apply() {

@@ -64,11 +64,25 @@ void Relocate::compute_gain() {
 }
 
 bool Relocate::is_valid() {
-  return cvrp::Relocate::is_valid() &&
-         _tw_t_route.is_valid_addition_for_tw(_input,
-                                              s_route[s_rank],
-                                              t_rank) &&
-         _tw_s_route.is_valid_removal(_input, s_rank, 1);
+  if (!cvrp::Relocate::is_valid() ||
+      !_tw_t_route.is_valid_addition_for_tw(_input, s_route[s_rank], t_rank) ||
+      !_tw_s_route.is_valid_removal(_input, s_rank, 1)) {
+    return false;
+  }
+
+  if (_input.vehicles[s_vehicle].max_duration == DEFAULT_MAX_DURATION &&
+      _input.vehicles[t_vehicle].max_duration == DEFAULT_MAX_DURATION) {
+    return true;
+  }
+
+  auto source_after = s_route;
+  source_after.erase(source_after.begin() + static_cast<std::ptrdiff_t>(s_rank));
+  auto target_after = t_route;
+  target_after.insert(target_after.begin() + static_cast<std::ptrdiff_t>(t_rank),
+                      s_route[s_rank]);
+
+  return utils::route_jobs_within_max_duration(_input, s_vehicle, source_after) &&
+         utils::route_jobs_within_max_duration(_input, t_vehicle, target_after);
 }
 
 void Relocate::apply() {

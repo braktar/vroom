@@ -675,6 +675,18 @@ Eval route_eval_for_vehicle(const Input& input,
                             Index vehicle_rank,
                             const std::vector<Index>& route);
 
+bool route_jobs_within_max_duration(const Input& input,
+                                    Index vehicle_rank,
+                                    const std::vector<Index>& jobs);
+
+bool insertion_respects_vehicle_bounds(const Input& input,
+                                       Index vehicle_rank,
+                                       const Eval& route_eval,
+                                       const Eval& insertion_eval,
+                                       const std::vector<Index>& route,
+                                       Index job_rank,
+                                       Index rank);
+
 // Approximate billable wait: depot slack plus waits at jobs, forward from
 // fixed_departure without backward re-optimization on `route`. Skips vehicles
 // with breaks. nullopt if a job time window cannot absorb forward time.

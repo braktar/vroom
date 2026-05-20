@@ -37,14 +37,36 @@ Eval Operator::gain() {
   return stored_gain;
 }
 
+namespace {
+
+bool eval_within_travel_and_distance_bounds(const Vehicle& v, const Eval& e) {
+  return v.ok_for_travel_time(e.duration) && v.ok_for_distance(e.distance);
+}
+
+bool eval_within_range_bounds(const Vehicle& v, const Eval& e) {
+  if (!eval_within_travel_and_distance_bounds(v, e)) {
+    return false;
+  }
+  if (v.max_duration != DEFAULT_MAX_DURATION) {
+    // Wait is not tracked in operator gains; max_duration is checked in VRPTW
+    // operator is_valid() implementations.
+    return true;
+  }
+  return v.ok_for_total_duration(e);
+}
+
+} // namespace
+
 bool Operator::is_valid_for_source_range_bounds() const {
   const auto& s_v = _input.vehicles[s_vehicle];
-  return s_v.ok_for_range_bounds(_sol_state.route_evals[s_vehicle] - s_gain);
+  return eval_within_range_bounds(s_v,
+                                  _sol_state.route_evals[s_vehicle] - s_gain);
 }
 
 bool Operator::is_valid_for_target_range_bounds() const {
   const auto& t_v = _input.vehicles[t_vehicle];
-  return t_v.ok_for_range_bounds(_sol_state.route_evals[t_vehicle] - t_gain);
+  return eval_within_range_bounds(t_v,
+                                  _sol_state.route_evals[t_vehicle] - t_gain);
 }
 
 bool Operator::is_valid_for_range_bounds() const {
@@ -52,8 +74,9 @@ bool Operator::is_valid_for_range_bounds() const {
   assert(gain_computed);
 
   const auto& s_v = _input.vehicles[s_vehicle];
-  return s_v.ok_for_range_bounds(_sol_state.route_evals[s_vehicle] -
-                                 stored_gain);
+  return eval_within_range_bounds(s_v,
+                                  _sol_state.route_evals[s_vehicle] -
+                                    stored_gain);
 }
 
 std::vector<Index> Operator::required_unassigned() const {

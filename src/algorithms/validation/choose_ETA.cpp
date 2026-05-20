@@ -1282,6 +1282,15 @@ Route choose_ETA(const Input& input,
         current.violations.types.insert(VIOLATION::MAX_DISTANCE);
         v_types.insert(VIOLATION::MAX_DISTANCE);
       }
+      if (!v.ok_for_total_duration(
+            Eval(0,
+                 utils::scale_from_user_duration(user_duration),
+                 0,
+                 setup + service,
+                 utils::scale_from_user_duration(user_waiting_time)))) {
+        current.violations.types.insert(VIOLATION::MAX_DURATION);
+        v_types.insert(VIOLATION::MAX_DURATION);
+      }
 
       switch (job.type) {
       case JOB_TYPE::SINGLE:
@@ -1389,6 +1398,15 @@ Route choose_ETA(const Input& input,
         current.violations.types.insert(VIOLATION::MAX_DISTANCE);
         v_types.insert(VIOLATION::MAX_DISTANCE);
       }
+      if (!v.ok_for_total_duration(
+            Eval(0,
+                 utils::scale_from_user_duration(user_duration),
+                 0,
+                 setup + service,
+                 utils::scale_from_user_duration(user_waiting_time)))) {
+        current.violations.types.insert(VIOLATION::MAX_DURATION);
+        v_types.insert(VIOLATION::MAX_DURATION);
+      }
       if (!b.is_valid_for_load(current_load)) {
         current.violations.types.insert(VIOLATION::MAX_LOAD);
         v_types.insert(VIOLATION::MAX_LOAD);
@@ -1440,6 +1458,15 @@ Route choose_ETA(const Input& input,
       if (!v.ok_for_distance(end_step.distance)) {
         end_step.violations.types.insert(VIOLATION::MAX_DISTANCE);
         v_types.insert(VIOLATION::MAX_DISTANCE);
+      }
+      if (!v.ok_for_total_duration(
+            Eval(0,
+                 utils::scale_from_user_duration(user_duration),
+                 0,
+                 setup + service,
+                 utils::scale_from_user_duration(user_waiting_time)))) {
+        end_step.violations.types.insert(VIOLATION::MAX_DURATION);
+        v_types.insert(VIOLATION::MAX_DURATION);
       }
 
       break;

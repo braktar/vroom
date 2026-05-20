@@ -76,11 +76,18 @@ inline void seed_route(const Input& input,
       continue;
     }
 
-    bool is_valid = (vehicle.ok_for_range_bounds(evals[job_rank][v_rank])) &&
-                    route.is_valid_addition_for_capacity(input,
-                                                         current_job.pickup,
-                                                         current_job.delivery,
-                                                         0);
+    std::vector<Index> seeded_jobs;
+    if (is_pickup) {
+      seeded_jobs = {job_rank, static_cast<Index>(job_rank + 1)};
+    } else {
+      seeded_jobs = {job_rank};
+    }
+    bool is_valid =
+      utils::route_jobs_within_max_duration(input, v_rank, seeded_jobs) &&
+      route.is_valid_addition_for_capacity(input,
+                                           current_job.pickup,
+                                           current_job.delivery,
+                                           0);
     if (is_pickup) {
       std::vector<Index> p_d({job_rank, static_cast<Index>(job_rank + 1)});
       is_valid = is_valid && route.is_valid_addition_for_tw(input,
@@ -300,7 +307,13 @@ inline Eval fill_route(const Input& input,
             lambda * static_cast<double>(regrets[job_rank]);
 
           if (current_cost < best_cost &&
-              (vehicle.ok_for_range_bounds(route_eval + current_eval)) &&
+              utils::insertion_respects_vehicle_bounds(input,
+                                                       v_rank,
+                                                       route_eval,
+                                                       current_eval,
+                                                       route.route,
+                                                       job_rank,
+                                                       r) &&
               current_job.pickup <= route.pickup_margin() &&
               current_job.delivery <= route.delivery_margin() &&
               route.is_valid_addition_for_capacity(input,
@@ -414,8 +427,16 @@ inline Eval fill_route(const Input& input,
               modified_with_pd.push_back(job_rank + 1);
 
               // Update best cost depending on validity.
+              std::vector<Index> route_after_pd = route.route;
+              route_after_pd.insert(route_after_pd.begin() +
+                                      static_cast<std::ptrdiff_t>(pickup_r),
+                                    modified_with_pd.begin(),
+                                    modified_with_pd.end());
+
               const bool valid =
-                (vehicle.ok_for_range_bounds(route_eval + current_eval)) &&
+                utils::route_jobs_within_max_duration(input,
+                                                      v_rank,
+                                                      route_after_pd) &&
                 route
                   .is_valid_addition_for_capacity_inclusion(input,
                                                             modified_delivery,
@@ -866,6 +887,16 @@ void set_route(const Input& input,
                   job_ranks.end(),
                   0,
                   0);
+
+    auto route_eval =
+      utils::route_eval_for_vehicle(input, route.v_rank, route.route);
+    if constexpr (std::is_same_v<Route, TWRoute>) {
+      route_eval.wait_duration = route.asap_total_wait;
+    }
+    if (!vehicle.ok_for_total_duration(route_eval)) {
+      throw InputException(
+        std::format("Route over max_duration for vehicle {}.", vehicle.id));
+    }
   }
 }
 

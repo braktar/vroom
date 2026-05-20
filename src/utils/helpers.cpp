@@ -84,6 +84,51 @@ Eval route_eval_for_vehicle(const Input& input,
   return eval;
 }
 
+bool route_jobs_within_max_duration(const Input& input,
+                                    Index vehicle_rank,
+                                    const std::vector<Index>& jobs) {
+  const auto& vehicle = input.vehicles[vehicle_rank];
+  if (vehicle.max_duration == DEFAULT_MAX_DURATION) {
+    return true;
+  }
+
+  auto eval = route_eval_for_vehicle(input, vehicle_rank, jobs);
+  if (!jobs.empty() && vehicle.breaks.empty()) {
+    if (const auto wait =
+          billable_wait_for_job_sequence_aligned_with_route_eval(input,
+                                                               vehicle_rank,
+                                                               jobs)) {
+      eval.wait_duration = *wait;
+    } else {
+      return false;
+    }
+  }
+
+  return vehicle.ok_for_total_duration(eval);
+}
+
+bool insertion_respects_vehicle_bounds(const Input& input,
+                                       Index vehicle_rank,
+                                       const Eval& route_eval,
+                                       const Eval& insertion_eval,
+                                       const std::vector<Index>& route,
+                                       Index job_rank,
+                                       Index rank) {
+  const auto& vehicle = input.vehicles[vehicle_rank];
+  const Eval combined = route_eval + insertion_eval;
+  if (!vehicle.ok_for_travel_time(combined.duration) ||
+      !vehicle.ok_for_distance(combined.distance)) {
+    return false;
+  }
+  if (vehicle.max_duration == DEFAULT_MAX_DURATION) {
+    return true;
+  }
+
+  std::vector<Index> jobs = route;
+  jobs.insert(jobs.begin() + static_cast<std::ptrdiff_t>(rank), job_rank);
+  return route_jobs_within_max_duration(input, vehicle_rank, jobs);
+}
+
 namespace {
 
 Duration job_action_duration_at(const Input& input,
@@ -630,7 +675,11 @@ Solution format_solution(const Input& input, const RawSolution& raw_routes) {
     last.arrival = scale_to_user_duration(ETA);
 
     assert(expected_delivery_ranks.empty());
-    assert(v.ok_for_range_bounds(eval_sum));
+    assert(v.ok_for_range_bounds(Eval(0,
+                                      eval_sum.duration,
+                                      eval_sum.distance,
+                                      setup + service,
+                                      0)));
 
     assert(v.fixed_cost() % (DURATION_FACTOR * COST_FACTOR) == 0);
     const UserCost user_fixed_cost = scale_to_user_cost(v.fixed_cost());
@@ -1172,7 +1221,11 @@ Route format_route(const Input& input,
   assert(expected_delivery_ranks.empty());
 
   assert(eval_sum.duration == duration);
-  assert(v.ok_for_range_bounds(eval_sum));
+  assert(v.ok_for_range_bounds(Eval(0,
+                                    eval_sum.duration,
+                                    eval_sum.distance,
+                                    setup + service,
+                                    tw_r.asap_total_wait)));
 
   assert(v.fixed_cost() % (DURATION_FACTOR * COST_FACTOR) == 0);
   const UserCost user_fixed_cost = utils::scale_to_user_cost(v.fixed_cost());

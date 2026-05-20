@@ -75,6 +75,7 @@ struct Vehicle {
   size_t max_tasks;
   const Duration max_travel_time;
   const Distance max_distance;
+  const Duration max_duration;
   const bool has_break_max_load;
   std::vector<VehicleStep> steps;
   Index type;
@@ -101,6 +102,8 @@ struct Vehicle {
       std::optional<UserDuration>(),
     const std::optional<UserDistance>& max_distance =
       std::optional<UserDistance>(),
+    const std::optional<UserDuration>& max_duration =
+      std::optional<UserDuration>(),
     const std::vector<VehicleStep>& input_steps = std::vector<VehicleStep>(),
     std::string type_str = NO_TYPE,
     const std::optional<UserDuration>& departure = std::nullopt);
@@ -166,9 +169,15 @@ struct Vehicle {
     return d <= max_distance;
   }
 
+  bool ok_for_total_duration(const Eval& e) const {
+    assert(0 <= e.duration && 0 <= e.task_duration && 0 <= e.wait_duration);
+    return e.duration + e.task_duration + e.wait_duration <= max_duration;
+  }
+
   bool ok_for_range_bounds(const Eval& e) const {
     assert(0 <= e.duration && 0 <= e.distance);
-    return e.duration <= max_travel_time && e.distance <= max_distance;
+    return ok_for_travel_time(e.duration) && ok_for_distance(e.distance) &&
+           ok_for_total_duration(e);
   }
 
   bool has_range_bounds() const;
@@ -185,11 +194,13 @@ struct Vehicle {
                     rhs.capacity,
                     rhs.tw.length,
                     rhs.max_travel_time,
-                    rhs.max_distance) < std::tie(lhs.max_tasks,
+                    rhs.max_distance,
+                    rhs.max_duration) < std::tie(lhs.max_tasks,
                                                  lhs.capacity,
                                                  lhs.tw.length,
                                                  lhs.max_travel_time,
-                                                 lhs.max_distance);
+                                                 lhs.max_distance,
+                                                 lhs.max_duration);
   }
 };
 

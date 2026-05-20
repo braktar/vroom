@@ -50,8 +50,13 @@ compute_best_insertion_single(const Input& input,
       Eval current_eval =
         utils::addition_eval(input, j, v_target, route.route, rank);
       if (current_eval.cost < result.eval.cost &&
-          v_target.ok_for_range_bounds(sol_state.route_evals[v] +
-                                       current_eval) &&
+          utils::insertion_respects_vehicle_bounds(input,
+                                                   v,
+                                                   sol_state.route_evals[v],
+                                                   current_eval,
+                                                   route.route,
+                                                   j,
+                                                   rank) &&
           current_job.pickup <= route.pickup_margin() &&
           current_job.delivery <= route.delivery_margin() &&
           route.is_valid_addition_for_capacity(input,
@@ -199,12 +204,19 @@ RouteInsertion compute_best_insertion_pd(const Input& input,
         pd_eval = p_add + d_adds[delivery_r];
       }
 
-      if (pd_eval < result.eval &&
-          v_target.ok_for_range_bounds(sol_state.route_evals[v] + pd_eval)) {
+      if (pd_eval < result.eval) {
         modified_with_pd.push_back(j + 1);
 
+        std::vector<Index> route_after_pd = route.route;
+        route_after_pd.insert(route_after_pd.begin() +
+                                static_cast<std::ptrdiff_t>(pickup_r),
+                              modified_with_pd.begin(),
+                              modified_with_pd.end());
+
         // Update best cost depending on validity.
-        bool is_valid = valid_for_capacity(input,
+        bool is_valid =
+          utils::route_jobs_within_max_duration(input, v, route_after_pd) &&
+          valid_for_capacity(input,
                                            route,
                                            modified_with_pd.begin(),
                                            modified_with_pd.end(),
