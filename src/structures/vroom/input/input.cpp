@@ -437,6 +437,12 @@ bool Input::is_used_several_times(const Location& location) const {
   return _locations_used_several_times.contains(location);
 }
 
+bool Input::has_nonzero_per_wait_hour() const {
+  return std::ranges::any_of(vehicles, [](const Vehicle& v) {
+    return v.costs.per_wait_hour != 0;
+  });
+}
+
 bool Input::has_skills() const {
   return _has_skills;
 }

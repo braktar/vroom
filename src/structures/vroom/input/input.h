@@ -168,6 +168,8 @@ public:
     return _apply_TSPFix;
   }
 
+  bool has_nonzero_per_wait_hour() const;
+
   bool is_used_several_times(const Location& location) const;
 
   bool has_skills() const;

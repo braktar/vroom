@@ -55,9 +55,8 @@ void RouteSplit::compute_gain() {
     if ((v_s.costs.per_wait_hour != 0 || v_b.costs.per_wait_hour != 0 ||
          v_e.costs.per_wait_hour != 0) &&
         v_s.breaks.empty() && v_b.breaks.empty() && v_e.breaks.empty()) {
-      const auto w_full =
-        utils::billable_wait_for_job_sequence_aligned_with_route_eval(
-          _input, s_vehicle, s_route);
+      const auto w_full = utils::wait_cost_for_job_sequence(
+        _input, s_vehicle, s_route, &_tw_s_route);
       std::vector<Index> prefix(s_route.begin(),
                                 s_route.begin() +
                                   static_cast<std::ptrdiff_t>(choice.split_rank));
@@ -65,16 +64,11 @@ void RouteSplit::compute_gain() {
         s_route.begin() + static_cast<std::ptrdiff_t>(choice.split_rank),
         s_route.end());
       const auto w_prefix =
-        utils::billable_wait_for_job_sequence_aligned_with_route_eval(
-          _input, v_begin, prefix);
+        utils::wait_cost_for_job_sequence(_input, v_begin, prefix, nullptr);
       const auto w_suffix =
-        utils::billable_wait_for_job_sequence_aligned_with_route_eval(
-          _input, v_end, suffix);
+        utils::wait_cost_for_job_sequence(_input, v_end, suffix, nullptr);
       if (w_full.has_value() && w_prefix.has_value() && w_suffix.has_value()) {
-        const Cost old_wc = v_s.wait_cost(*w_full);
-        const Cost new_wc =
-          v_b.wait_cost(*w_prefix) + v_e.wait_cost(*w_suffix);
-        stored_gain.cost += old_wc - new_wc;
+        stored_gain.cost += *w_full - *w_prefix - *w_suffix;
       }
     }
   }

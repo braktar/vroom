@@ -94,7 +94,9 @@ void SwapStar::compute_gain() {
                                                          ns,
                                                          t_vehicle,
                                                          t_route,
-                                                         nt);
+                                                         nt,
+                                                         &_tw_s_route,
+                                                         &_tw_t_route);
   }
   gain_computed = true;
 }

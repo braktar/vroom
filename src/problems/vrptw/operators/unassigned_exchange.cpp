@@ -44,7 +44,8 @@ void UnassignedExchange::compute_gain() {
                                                       stored_gain,
                                                       s_vehicle,
                                                       s_route,
-                                                      nr);
+                                                      nr,
+                                                      &_tw_s_route);
 }
 
 bool UnassignedExchange::is_valid() {

@@ -34,6 +34,24 @@ All rights reserved (see LICENSE).
 
 namespace vroom::ls {
 
+namespace {
+
+template <class Operator>
+bool operator_beats_current_best(const Input& input,
+                                Operator& op,
+                                const Eval& current_best) {
+  if (input.has_nonzero_per_wait_hour()) {
+    // Same initialization order as the travel-only path (upper bound, then
+    // validity, then gain) but skip pruning on gain_upper_bound.
+    (void)op.gain_upper_bound();
+    return op.is_valid() && current_best < op.gain();
+  }
+  return current_best < op.gain_upper_bound() && op.is_valid() &&
+         current_best < op.gain();
+}
+
+} // namespace
+
 template <class Route,
           class UnassignedExchange,
           class CrossExchange,
@@ -751,8 +769,7 @@ void LocalSearch<Route,
                           !is_t_pickup);
 
           auto& current_best = best_gains[source][target];
-          if (current_best < r.gain_upper_bound() && r.is_valid() &&
-              current_best < r.gain()) {
+          if (operator_beats_current_best(_input, r, current_best)) {
             current_best = r.gain();
             best_ops[source][target] = std::make_unique<CrossExchange>(r);
           }
@@ -864,8 +881,7 @@ void LocalSearch<Route,
                             !is_t_pickup);
 
             auto& current_best = best_gains[source][target];
-            if (current_best < r.gain_upper_bound() && r.is_valid() &&
-                current_best < r.gain()) {
+            if (operator_beats_current_best(_input, r, current_best)) {
               current_best = r.gain();
               best_ops[source][target] = std::make_unique<MixedExchange>(r);
             }
@@ -1110,11 +1126,12 @@ void LocalSearch<Route,
         const auto& t_pickup_margin = _sol[target].pickup_margin();
 
         for (unsigned s_rank = 0; s_rank < _sol[source].size(); ++s_rank) {
-          if (_sol_state.node_gains[source][s_rank] <=
-              best_gains[source][target]) {
+          if (!_input.has_nonzero_per_wait_hour() &&
+              _sol_state.node_gains[source][s_rank] <=
+                best_gains[source][target]) {
             // Except if addition cost in target route is negative
             // (!!), overall gain can't exceed current known best
-            // gain.
+            // gain (travel-only bound; invalid when per_wait_hour > 0).
             continue;
           }
 
@@ -1221,8 +1238,7 @@ void LocalSearch<Route,
                     t_rank);
 
             auto& current_best = best_gains[source][target];
-            if (current_best < r.gain_upper_bound() && r.is_valid() &&
-                current_best < r.gain()) {
+            if (operator_beats_current_best(_input, r, current_best)) {
               current_best = r.gain();
               best_ops[source][target] = std::make_unique<OrOpt>(r);
             }
@@ -1360,8 +1376,7 @@ void LocalSearch<Route,
                                !is_t_pickup);
 
           auto& current_best = best_gains[source][target];
-          if (current_best < r.gain_upper_bound() && r.is_valid() &&
-              current_best < r.gain()) {
+          if (operator_beats_current_best(_input, r, current_best)) {
             current_best = r.gain();
             best_ops[source][source] = std::make_unique<IntraCrossExchange>(r);
           }
@@ -1427,8 +1442,7 @@ void LocalSearch<Route,
                                t_rank,
                                !is_t_pickup);
           auto& current_best = best_gains[source][target];
-          if (current_best < r.gain_upper_bound() && r.is_valid() &&
-              current_best < r.gain()) {
+          if (operator_beats_current_best(_input, r, current_best)) {
             current_best = r.gain();
             best_ops[source][source] = std::make_unique<IntraMixedExchange>(r);
           }
@@ -1444,10 +1458,12 @@ void LocalSearch<Route,
       }
 
       for (unsigned s_rank = 0; s_rank < _sol[source].size(); ++s_rank) {
-        if (_sol_state.node_gains[source][s_rank] <=
-            best_gains[source][source]) {
+        if (!_input.has_nonzero_per_wait_hour() &&
+            _sol_state.node_gains[source][s_rank] <=
+              best_gains[source][source]) {
           // Except if addition cost in route is negative (!!),
-          // overall gain can't exceed current known best gain.
+          // overall gain can't exceed current known best gain
+          // (travel-only bound; invalid when per_wait_hour > 0).
           continue;
         }
 
@@ -1559,8 +1575,7 @@ void LocalSearch<Route,
                        t_rank,
                        !is_pickup);
           auto& current_best = best_gains[source][target];
-          if (current_best < r.gain_upper_bound() && r.is_valid() &&
-              current_best < r.gain()) {
+          if (operator_beats_current_best(_input, r, current_best)) {
             current_best = r.gain();
             best_ops[source][source] = std::make_unique<IntraOrOpt>(r);
           }

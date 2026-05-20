@@ -8,8 +8,11 @@ All rights reserved (see LICENSE).
 */
 
 #include <algorithm>
+#include <type_traits>
+#include <vector>
 
 #include "algorithms/heuristics/heuristics.h"
+#include "structures/vroom/tw_route.h"
 #include "utils/helpers.h"
 
 namespace vroom::heuristics {
@@ -289,8 +292,18 @@ inline Eval fill_route(const Input& input,
         }
 
         for (Index r = 0; r <= route.size(); ++r) {
-          const auto current_eval =
+          Eval current_eval =
             utils::addition_eval(input, job_rank, vehicle, route.route, r);
+          if constexpr (std::is_same_v<Route, TWRoute>) {
+            if (input.has_nonzero_per_wait_hour()) {
+              std::vector<Index> route_with_job = route.route;
+              route_with_job.insert(route_with_job.begin() +
+                                      static_cast<std::ptrdiff_t>(r),
+                                    job_rank);
+              current_eval.cost += utils::wait_insertion_marginal_cost(
+                input, route, route_with_job);
+            }
+          }
 
           const double current_cost =
             static_cast<double>(current_eval.cost) -
@@ -298,6 +311,8 @@ inline Eval fill_route(const Input& input,
 
           if (current_cost < best_cost &&
               (vehicle.ok_for_range_bounds(route_eval + current_eval)) &&
+              current_job.pickup <= route.pickup_margin() &&
+              current_job.delivery <= route.delivery_margin() &&
               route.is_valid_addition_for_capacity(input,
                                                    current_job.pickup,
                                                    current_job.delivery,

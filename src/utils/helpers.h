@@ -693,10 +693,21 @@ std::optional<Duration> billable_wait_for_job_sequence_aligned_with_route_eval(
   Index vehicle_rank,
   const std::vector<Index>& jobs);
 
+// Wait cost for `jobs` on `vehicle_rank`. Uses `tw_if_matches` when its route
+// equals `jobs` (reuses asap_total_wait) instead of rebuilding a scratch TWRoute.
+std::optional<Cost> wait_cost_for_job_sequence(const Input& input,
+                                               Index vehicle_rank,
+                                               const std::vector<Index>& jobs,
+                                               const TWRoute* tw_if_matches);
+
+// Marginal wait cost (old - new) for inserting into `route_with_insertion` vs
+// current `route` state. Returns 0 when wait is not in the objective.
+Cost wait_insertion_marginal_cost(const Input& input,
+                                  const TWRoute& route,
+                                  const std::vector<Index>& route_with_insertion);
+
 // VRPTW local search: add (old_wait_cost - new_wait_cost) to gain.cost for
-// vehicles with per_wait_hour and no breaks. Wait is computed with
-// billable_wait_for_job_sequence_aligned_with_route_eval. No-op if undefined
-// for any sequence (infeasible TW or vehicle has breaks).
+// vehicles with per_wait_hour and no breaks.
 void adjust_stored_gain_for_wait_approx_two_routes(
   const Input& input,
   Eval& stored_gain,
@@ -705,13 +716,16 @@ void adjust_stored_gain_for_wait_approx_two_routes(
   const std::vector<Index>& r1_new,
   Index v2,
   const std::vector<Index>& r2_old,
-  const std::vector<Index>& r2_new);
+  const std::vector<Index>& r2_new,
+  const TWRoute* tw_r1_old = nullptr,
+  const TWRoute* tw_r2_old = nullptr);
 
 void adjust_stored_gain_for_wait_approx_one_route(const Input& input,
                                                   Eval& stored_gain,
                                                   Index v,
                                                   const std::vector<Index>& r_old,
-                                                  const std::vector<Index>& r_new);
+                                                  const std::vector<Index>& r_new,
+                                                  const TWRoute* tw_r_old = nullptr);
 
 void check_tws(const std::vector<TimeWindow>& tws,
                Id id,

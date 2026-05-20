@@ -29,6 +29,8 @@ public:
                   Index u,
                   Priority best_known_priority_gain);
 
+  void compute_gain() override;
+
   bool is_valid() override;
 
   void apply() override;

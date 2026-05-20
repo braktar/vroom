@@ -40,7 +40,9 @@ void RouteExchange::compute_gain() {
                                                        t_route,
                                                        t_vehicle,
                                                        t_route,
-                                                       s_route);
+                                                       s_route,
+                                                       &_tw_s_route,
+                                                       &_tw_t_route);
 }
 
 bool RouteExchange::is_valid() {

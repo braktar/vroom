@@ -10,6 +10,7 @@ All rights reserved (see LICENSE).
 #include <algorithm>
 
 #include "problems/vrptw/operators/priority_replace.h"
+#include "utils/helpers.h"
 
 namespace vroom::vrptw {
 
@@ -32,6 +33,34 @@ PriorityReplace::PriorityReplace(const Input& input,
                           u,
                           best_known_priority_gain),
     _tw_s_route(tw_s_route) {
+}
+
+void PriorityReplace::compute_gain() {
+  cvrp::PriorityReplace::compute_gain();
+  if (!gain_computed) {
+    return;
+  }
+
+  std::vector<Index> new_route;
+  if (replace_start_valid) {
+    new_route.push_back(_u);
+    new_route.insert(new_route.end(),
+                     s_route.begin() + static_cast<std::ptrdiff_t>(s_rank) + 1,
+                     s_route.end());
+  } else {
+    assert(replace_end_valid);
+    new_route.insert(new_route.end(),
+                     s_route.begin(),
+                     s_route.begin() + static_cast<std::ptrdiff_t>(t_rank));
+    new_route.push_back(_u);
+  }
+
+  utils::adjust_stored_gain_for_wait_approx_one_route(_input,
+                                                      stored_gain,
+                                                      s_vehicle,
+                                                      s_route,
+                                                      new_route,
+                                                      &_tw_s_route);
 }
 
 bool PriorityReplace::is_valid() {

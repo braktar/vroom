@@ -57,7 +57,9 @@ void TwoOpt::compute_gain() {
                                                        ns,
                                                        t_vehicle,
                                                        t_route,
-                                                       nt);
+                                                       nt,
+                                                       &_tw_s_route,
+                                                       &_tw_t_route);
 }
 
 bool TwoOpt::is_valid() {

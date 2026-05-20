@@ -9,6 +9,7 @@ All rights reserved (see LICENSE).
 
 #include "problems/vrptw/operators/pd_shift.h"
 #include "algorithms/local_search/insertion_search.h"
+#include "utils/helpers.h"
 
 namespace vroom::vrptw {
 
@@ -61,6 +62,39 @@ void PDShift::compute_gain() {
     _best_t_p_rank = rs.pickup_rank;
     _best_t_d_rank = rs.delivery_rank;
     _best_t_delivery = rs.delivery;
+
+    std::vector<Index> s_new = s_route;
+    if (_s_d_rank == _s_p_rank + 1) {
+      s_new.erase(s_new.begin() + static_cast<std::ptrdiff_t>(_s_p_rank),
+                  s_new.begin() + static_cast<std::ptrdiff_t>(_s_d_rank) + 1);
+    } else {
+      s_new.erase(s_new.begin() + static_cast<std::ptrdiff_t>(_s_p_rank));
+      s_new.erase(s_new.begin() + static_cast<std::ptrdiff_t>(_s_d_rank - 1));
+    }
+
+    std::vector<Index> t_new;
+    t_new.insert(t_new.end(),
+                 t_route.begin(),
+                 t_route.begin() + static_cast<std::ptrdiff_t>(_best_t_p_rank));
+    t_new.push_back(s_route[_s_p_rank]);
+    t_new.insert(t_new.end(),
+                 t_route.begin() + static_cast<std::ptrdiff_t>(_best_t_p_rank),
+                 t_route.begin() + static_cast<std::ptrdiff_t>(_best_t_d_rank));
+    t_new.push_back(s_route[_s_d_rank]);
+    t_new.insert(t_new.end(),
+                 t_route.begin() + static_cast<std::ptrdiff_t>(_best_t_d_rank),
+                 t_route.end());
+
+    utils::adjust_stored_gain_for_wait_approx_two_routes(_input,
+                                                         stored_gain,
+                                                         s_vehicle,
+                                                         s_route,
+                                                         s_new,
+                                                         t_vehicle,
+                                                         t_route,
+                                                         t_new,
+                                                         &_tw_s_route,
+                                                         &_tw_t_route);
   }
   gain_computed = true;
 }
