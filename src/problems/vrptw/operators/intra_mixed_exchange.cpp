@@ -32,6 +32,9 @@ IntraMixedExchange::IntraMixedExchange(const Input& input,
 }
 
 void IntraMixedExchange::compute_gain() {
+  set_wait_gain_upper_bound(utils::wait_gain_upper_bound_from_route(
+    _input, s_vehicle, s_route, &_tw_s_route));
+
   cvrp::IntraMixedExchange::compute_gain();
 
   auto moved = _moved_jobs;
@@ -47,7 +50,8 @@ void IntraMixedExchange::compute_gain() {
                                                       s_vehicle,
                                                       s_route,
                                                       nr,
-                                                      &_tw_s_route);
+                                                      &_tw_s_route,
+                                                      best_known_threshold);
 }
 
 bool IntraMixedExchange::is_valid() {

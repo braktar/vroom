@@ -294,16 +294,6 @@ inline Eval fill_route(const Input& input,
         for (Index r = 0; r <= route.size(); ++r) {
           Eval current_eval =
             utils::addition_eval(input, job_rank, vehicle, route.route, r);
-          if constexpr (std::is_same_v<Route, TWRoute>) {
-            if (input.has_nonzero_per_wait_hour()) {
-              std::vector<Index> route_with_job = route.route;
-              route_with_job.insert(route_with_job.begin() +
-                                      static_cast<std::ptrdiff_t>(r),
-                                    job_rank);
-              current_eval.cost += utils::wait_insertion_marginal_cost(
-                input, route, route_with_job);
-            }
-          }
 
           const double current_cost =
             static_cast<double>(current_eval.cost) -
@@ -318,6 +308,16 @@ inline Eval fill_route(const Input& input,
                                                    current_job.delivery,
                                                    r) &&
               route.is_valid_addition_for_tw(input, job_rank, r)) {
+            if constexpr (std::is_same_v<Route, TWRoute>) {
+              if (input.has_nonzero_per_wait_hour()) {
+                std::vector<Index> route_with_job = route.route;
+                route_with_job.insert(route_with_job.begin() +
+                                        static_cast<std::ptrdiff_t>(r),
+                                      job_rank);
+                current_eval.cost += utils::wait_insertion_marginal_cost(
+                  input, route, route_with_job);
+              }
+            }
             best_cost = current_cost;
             best_job_rank = job_rank;
             best_r = r;

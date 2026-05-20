@@ -37,6 +37,9 @@ protected:
   Eval s_gain;
   Eval t_gain;
   Eval stored_gain;
+  // Upper bound on wait component of gain (old wait costs); unset if uncertain.
+  std::optional<Cost> wait_gain_upper_bound;
+  Eval best_known_threshold{NO_EVAL};
 
   virtual void compute_gain() = 0;
 
@@ -73,6 +76,12 @@ public:
   OperatorName get_name() const;
 
   virtual Eval gain();
+
+  void set_best_known_threshold(Eval threshold);
+
+  void set_wait_gain_upper_bound(std::optional<Cost> ub);
+
+  const std::optional<Cost>& get_wait_gain_upper_bound() const;
 
   virtual bool is_valid() = 0;
 

@@ -40,14 +40,16 @@ template <class Operator>
 bool operator_beats_current_best(const Input& input,
                                 Operator& op,
                                 const Eval& current_best) {
+  op.set_best_known_threshold(current_best);
+  const auto travel_ub = op.gain_upper_bound();
   if (input.has_nonzero_per_wait_hour()) {
-    // Same initialization order as the travel-only path (upper bound, then
-    // validity, then gain) but skip pruning on gain_upper_bound.
-    (void)op.gain_upper_bound();
+    const auto& wait_ub = op.get_wait_gain_upper_bound();
+    if (wait_ub.has_value() && current_best.cost >= travel_ub.cost + *wait_ub) {
+      return false;
+    }
     return op.is_valid() && current_best < op.gain();
   }
-  return current_best < op.gain_upper_bound() && op.is_valid() &&
-         current_best < op.gain();
+  return current_best < travel_ub && op.is_valid() && current_best < op.gain();
 }
 
 } // namespace
@@ -1126,13 +1128,20 @@ void LocalSearch<Route,
         const auto& t_pickup_margin = _sol[target].pickup_margin();
 
         for (unsigned s_rank = 0; s_rank < _sol[source].size(); ++s_rank) {
-          if (!_input.has_nonzero_per_wait_hour() &&
-              _sol_state.node_gains[source][s_rank] <=
-                best_gains[source][target]) {
-            // Except if addition cost in target route is negative
-            // (!!), overall gain can't exceed current known best
-            // gain (travel-only bound; invalid when per_wait_hour > 0).
-            continue;
+          if (_sol_state.node_gains[source][s_rank] <=
+              best_gains[source][target]) {
+            if (!_input.has_nonzero_per_wait_hour()) {
+              // Except if addition cost in target route is negative
+              // (!!), overall gain can't exceed current known best gain.
+              continue;
+            }
+            const auto wait_ub = utils::wait_gain_upper_bound_for_ls_relocate(
+              _input, source, _sol[source], target, _sol[target]);
+            if (!wait_ub.has_value() ||
+                _sol_state.node_gains[source][s_rank].cost + *wait_ub <=
+                  best_gains[source][target].cost) {
+              continue;
+            }
           }
 
           const auto s_job_rank = _sol[source].route[s_rank];
@@ -1163,6 +1172,7 @@ void LocalSearch<Route,
                        _sol[target],
                        target,
                        t_rank);
+            r.set_best_known_threshold(best_gains[source][target]);
 
             if (best_gains[source][target] < r.gain() && r.is_valid()) {
               best_gains[source][target] = r.gain();
@@ -1458,13 +1468,18 @@ void LocalSearch<Route,
       }
 
       for (unsigned s_rank = 0; s_rank < _sol[source].size(); ++s_rank) {
-        if (!_input.has_nonzero_per_wait_hour() &&
-            _sol_state.node_gains[source][s_rank] <=
-              best_gains[source][source]) {
-          // Except if addition cost in route is negative (!!),
-          // overall gain can't exceed current known best gain
-          // (travel-only bound; invalid when per_wait_hour > 0).
-          continue;
+        if (_sol_state.node_gains[source][s_rank] <=
+            best_gains[source][source]) {
+          if (!_input.has_nonzero_per_wait_hour()) {
+            continue;
+          }
+          const auto wait_ub = utils::wait_gain_upper_bound_for_ls_route(
+            _input, source, _sol[source]);
+          if (!wait_ub.has_value() ||
+              _sol_state.node_gains[source][s_rank].cost + *wait_ub <=
+                best_gains[source][source].cost) {
+            continue;
+          }
         }
 
         const auto s_job_rank = _sol[source].route[s_rank];

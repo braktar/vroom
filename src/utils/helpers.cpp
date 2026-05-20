@@ -132,11 +132,26 @@ std::optional<Duration> billable_wait_for_job_sequence_aligned_with_route_eval(
   if (jobs.empty()) {
     return Duration{0};
   }
+
+  // Exact evaluation (backward depot release). For fast LS estimates use
+  // wait_cost_approx_job_sequence instead.
+  bool has_non_single = false;
+  for (const Index jr : jobs) {
+    if (input.jobs[jr].type != JOB_TYPE::SINGLE) {
+      has_non_single = true;
+      break;
+    }
+  }
+  if (has_non_single) {
+    const auto approx = approx_billable_wait_jobs_only(input,
+                                                       vehicle_rank,
+                                                       jobs,
+                                                       v.earliest_route_start());
+    return approx;
+  }
+
   TWRoute tw(input, vehicle_rank, input.get_amount_size());
   for (const Index jr : jobs) {
-    // Scratch route is built with TWRoute::add (single jobs only). Skip wait
-    // scoring when the sequence cannot be replayed safely (e.g. pickup-delivery
-    // pairs) or would violate capacity/TW/margins before update_amounts asserts.
     if (!tw_route_can_append_single_for_wait_eval(input, tw, jr)) {
       return std::nullopt;
     }
@@ -193,6 +208,74 @@ std::optional<Duration> approx_billable_wait_jobs_only(
   return total;
 }
 
+std::optional<Cost> wait_cost_approx_job_sequence(
+  const Input& input,
+  Index vehicle_rank,
+  const std::vector<Index>& jobs) {
+  const auto& veh = input.vehicles[vehicle_rank];
+  if (veh.costs.per_wait_hour == 0 || !veh.breaks.empty()) {
+    return Cost{0};
+  }
+  const auto w = approx_billable_wait_jobs_only(input,
+                                                vehicle_rank,
+                                                jobs,
+                                                veh.earliest_route_start());
+  if (!w.has_value()) {
+    return std::nullopt;
+  }
+  return veh.wait_cost(*w);
+}
+
+std::optional<Cost> wait_gain_upper_bound_from_routes(
+  const Input& input,
+  Index v1,
+  const std::vector<Index>& r1,
+  const TWRoute* tw_r1,
+  Index v2,
+  const std::vector<Index>& r2,
+  const TWRoute* tw_r2) {
+  const auto& veh1 = input.vehicles[v1];
+  const auto& veh2 = input.vehicles[v2];
+  if (veh1.costs.per_wait_hour == 0 && veh2.costs.per_wait_hour == 0) {
+    return Cost{0};
+  }
+  if (!veh1.breaks.empty() || !veh2.breaks.empty()) {
+    return std::nullopt;
+  }
+
+  Cost total{0};
+  if (veh1.costs.per_wait_hour != 0) {
+    const auto wc1 = wait_cost_for_job_sequence(input, v1, r1, tw_r1);
+    if (!wc1.has_value()) {
+      return std::nullopt;
+    }
+    total += *wc1;
+  }
+  if (v2 != v1 || r2 != r1) {
+    if (veh2.costs.per_wait_hour != 0) {
+      const auto wc2 = wait_cost_for_job_sequence(input, v2, r2, tw_r2);
+      if (!wc2.has_value()) {
+        return std::nullopt;
+      }
+      total += *wc2;
+    }
+  }
+  return total;
+}
+
+namespace {
+
+bool skip_exact_wait_gain_adjustment(const Eval& stored_gain,
+                                     const std::optional<Cost>& wait_ub,
+                                     const Eval& best_known) {
+  if (best_known == NO_EVAL || !wait_ub.has_value()) {
+    return false;
+  }
+  return stored_gain.cost + *wait_ub <= best_known.cost;
+}
+
+} // namespace
+
 std::optional<Cost> wait_cost_for_job_sequence(const Input& input,
                                                Index vehicle_rank,
                                                const std::vector<Index>& jobs,
@@ -218,12 +301,24 @@ Cost wait_insertion_marginal_cost(const Input& input,
                                   const TWRoute& route,
                                   const std::vector<Index>& route_with_insertion) {
   const auto v = route.v_rank;
+  const auto& veh = input.vehicles[v];
+  if (veh.costs.per_wait_hour == 0 || !veh.breaks.empty()) {
+    return Cost{0};
+  }
   const auto old_wc =
     wait_cost_for_job_sequence(input, v, route.route, &route);
-  const auto new_wc =
-    wait_cost_for_job_sequence(input, v, route_with_insertion, nullptr);
-  if (!old_wc.has_value() || !new_wc.has_value()) {
+  if (!old_wc.has_value()) {
     return Cost{0};
+  }
+  const auto new_wc =
+    wait_cost_approx_job_sequence(input, v, route_with_insertion);
+  if (!new_wc.has_value()) {
+    const auto new_wc_exact =
+      wait_cost_for_job_sequence(input, v, route_with_insertion, nullptr);
+    if (!new_wc_exact.has_value()) {
+      return Cost{0};
+    }
+    return *old_wc - *new_wc_exact;
   }
   return *old_wc - *new_wc;
 }
@@ -238,7 +333,8 @@ void adjust_stored_gain_for_wait_approx_two_routes(
   const std::vector<Index>& r2_old,
   const std::vector<Index>& r2_new,
   const TWRoute* tw_r1_old,
-  const TWRoute* tw_r2_old) {
+  const TWRoute* tw_r2_old,
+  Eval best_known) {
   const auto& veh1 = input.vehicles[v1];
   const auto& veh2 = input.vehicles[v2];
   if (veh1.costs.per_wait_hour == 0 && veh2.costs.per_wait_hour == 0) {
@@ -248,19 +344,42 @@ void adjust_stored_gain_for_wait_approx_two_routes(
     return;
   }
 
+  const auto wait_ub = wait_gain_upper_bound_from_routes(input,
+                                                         v1,
+                                                         r1_old,
+                                                         tw_r1_old,
+                                                         v2,
+                                                         r2_old,
+                                                         tw_r2_old);
+  if (skip_exact_wait_gain_adjustment(stored_gain, wait_ub, best_known)) {
+    return;
+  }
+
   const auto old_wc1 =
     wait_cost_for_job_sequence(input, v1, r1_old, tw_r1_old);
   const auto old_wc2 =
     wait_cost_for_job_sequence(input, v2, r2_old, tw_r2_old);
-  const auto new_wc1 =
-    wait_cost_for_job_sequence(input, v1, r1_new, nullptr);
-  const auto new_wc2 =
-    wait_cost_for_job_sequence(input, v2, r2_new, nullptr);
-  if (!old_wc1.has_value() || !old_wc2.has_value() || !new_wc1.has_value() ||
-      !new_wc2.has_value()) {
+  if (!old_wc1.has_value() || !old_wc2.has_value()) {
     return;
   }
-  stored_gain.cost += *old_wc1 + *old_wc2 - *new_wc1 - *new_wc2;
+
+  const auto new_wc1 =
+    wait_cost_approx_job_sequence(input, v1, r1_new);
+  const auto new_wc2 =
+    wait_cost_approx_job_sequence(input, v2, r2_new);
+  if (new_wc1.has_value() && new_wc2.has_value()) {
+    stored_gain.cost += *old_wc1 + *old_wc2 - *new_wc1 - *new_wc2;
+    return;
+  }
+
+  const auto new_wc1_exact =
+    wait_cost_for_job_sequence(input, v1, r1_new, nullptr);
+  const auto new_wc2_exact =
+    wait_cost_for_job_sequence(input, v2, r2_new, nullptr);
+  if (!new_wc1_exact.has_value() || !new_wc2_exact.has_value()) {
+    return;
+  }
+  stored_gain.cost += *old_wc1 + *old_wc2 - *new_wc1_exact - *new_wc2_exact;
 }
 
 void adjust_stored_gain_for_wait_approx_one_route(const Input& input,
@@ -268,19 +387,35 @@ void adjust_stored_gain_for_wait_approx_one_route(const Input& input,
                                                   Index v,
                                                   const std::vector<Index>& r_old,
                                                   const std::vector<Index>& r_new,
-                                                  const TWRoute* tw_r_old) {
+                                                  const TWRoute* tw_r_old,
+                                                  Eval best_known) {
   const auto& veh = input.vehicles[v];
   if (veh.costs.per_wait_hour == 0 || !veh.breaks.empty()) {
     return;
   }
-  const auto old_wc =
-    wait_cost_for_job_sequence(input, v, r_old, tw_r_old);
-  const auto new_wc =
-    wait_cost_for_job_sequence(input, v, r_new, nullptr);
-  if (!old_wc.has_value() || !new_wc.has_value()) {
+
+  const auto wait_ub =
+    wait_gain_upper_bound_from_route(input, v, r_old, tw_r_old);
+  if (skip_exact_wait_gain_adjustment(stored_gain, wait_ub, best_known)) {
     return;
   }
-  stored_gain.cost += *old_wc - *new_wc;
+
+  const auto old_wc =
+    wait_cost_for_job_sequence(input, v, r_old, tw_r_old);
+  if (!old_wc.has_value()) {
+    return;
+  }
+  const auto new_wc = wait_cost_approx_job_sequence(input, v, r_new);
+  if (new_wc.has_value()) {
+    stored_gain.cost += *old_wc - *new_wc;
+    return;
+  }
+  const auto new_wc_exact =
+    wait_cost_for_job_sequence(input, v, r_new, nullptr);
+  if (!new_wc_exact.has_value()) {
+    return;
+  }
+  stored_gain.cost += *old_wc - *new_wc_exact;
 }
 
 #ifndef NDEBUG

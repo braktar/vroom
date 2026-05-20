@@ -85,6 +85,15 @@ void PDShift::compute_gain() {
                  t_route.begin() + static_cast<std::ptrdiff_t>(_best_t_d_rank),
                  t_route.end());
 
+    set_wait_gain_upper_bound(
+      utils::wait_gain_upper_bound_from_routes(_input,
+                                               s_vehicle,
+                                               s_route,
+                                               &_tw_s_route,
+                                               t_vehicle,
+                                               t_route,
+                                               &_tw_t_route));
+
     utils::adjust_stored_gain_for_wait_approx_two_routes(_input,
                                                          stored_gain,
                                                          s_vehicle,
@@ -94,7 +103,8 @@ void PDShift::compute_gain() {
                                                          t_route,
                                                          t_new,
                                                          &_tw_s_route,
-                                                         &_tw_t_route);
+                                                         &_tw_t_route,
+                                                         best_known_threshold);
   }
   gain_computed = true;
 }

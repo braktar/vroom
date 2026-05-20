@@ -700,6 +700,59 @@ std::optional<Cost> wait_cost_for_job_sequence(const Input& input,
                                                const std::vector<Index>& jobs,
                                                const TWRoute* tw_if_matches);
 
+// Upper bound on wait gain (old_wait_cost - new_wait_cost) with new_wait >= 0.
+// nullopt if uncertain (breaks, infeasible approx, etc.) — do not prune on wait.
+std::optional<Cost> wait_gain_upper_bound_from_routes(
+  const Input& input,
+  Index v1,
+  const std::vector<Index>& r1,
+  const TWRoute* tw_r1,
+  Index v2,
+  const std::vector<Index>& r2,
+  const TWRoute* tw_r2);
+
+inline std::optional<Cost>
+wait_gain_upper_bound_from_route(const Input& input,
+                                 Index v,
+                                 const std::vector<Index>& r,
+                                 const TWRoute* tw_r) {
+  return wait_gain_upper_bound_from_routes(input, v, r, tw_r, v, r, tw_r);
+}
+
+template <class Route>
+std::optional<Cost> wait_gain_upper_bound_for_ls_route(const Input& input,
+                                                       Index v,
+                                                       const Route& route) {
+  if constexpr (std::is_same_v<Route, TWRoute>) {
+    return wait_gain_upper_bound_from_route(input, v, route.route, &route);
+  }
+  return std::nullopt;
+}
+
+template <class Route>
+std::optional<Cost>
+wait_gain_upper_bound_for_ls_relocate(const Input& input,
+                                      Index source,
+                                      const Route& s_route,
+                                      Index target,
+                                      const Route& t_route) {
+  if constexpr (std::is_same_v<Route, TWRoute>) {
+    return wait_gain_upper_bound_from_routes(input,
+                                             source,
+                                             s_route.route,
+                                             &s_route,
+                                             target,
+                                             t_route.route,
+                                             &t_route);
+  }
+  return std::nullopt;
+}
+
+// Fast wait cost from forward-only approx (no TWRoute rebuild). nullopt if unknown.
+std::optional<Cost> wait_cost_approx_job_sequence(const Input& input,
+                                                  Index vehicle_rank,
+                                                  const std::vector<Index>& jobs);
+
 // Marginal wait cost (old - new) for inserting into `route_with_insertion` vs
 // current `route` state. Returns 0 when wait is not in the objective.
 Cost wait_insertion_marginal_cost(const Input& input,
@@ -718,14 +771,16 @@ void adjust_stored_gain_for_wait_approx_two_routes(
   const std::vector<Index>& r2_old,
   const std::vector<Index>& r2_new,
   const TWRoute* tw_r1_old = nullptr,
-  const TWRoute* tw_r2_old = nullptr);
+  const TWRoute* tw_r2_old = nullptr,
+  Eval best_known = NO_EVAL);
 
 void adjust_stored_gain_for_wait_approx_one_route(const Input& input,
                                                   Eval& stored_gain,
                                                   Index v,
                                                   const std::vector<Index>& r_old,
                                                   const std::vector<Index>& r_new,
-                                                  const TWRoute* tw_r_old = nullptr);
+                                                  const TWRoute* tw_r_old = nullptr,
+                                                  Eval best_known = NO_EVAL);
 
 void check_tws(const std::vector<TimeWindow>& tws,
                Id id,

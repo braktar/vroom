@@ -31,6 +31,15 @@ RouteExchange::RouteExchange(const Input& input,
 }
 
 void RouteExchange::compute_gain() {
+  set_wait_gain_upper_bound(
+    utils::wait_gain_upper_bound_from_routes(_input,
+                                             s_vehicle,
+                                             s_route,
+                                             &_tw_s_route,
+                                             t_vehicle,
+                                             t_route,
+                                             &_tw_t_route));
+
   cvrp::RouteExchange::compute_gain();
 
   utils::adjust_stored_gain_for_wait_approx_two_routes(_input,
@@ -42,7 +51,8 @@ void RouteExchange::compute_gain() {
                                                        t_route,
                                                        s_route,
                                                        &_tw_s_route,
-                                                       &_tw_t_route);
+                                                       &_tw_t_route,
+                                                       best_known_threshold);
 }
 
 bool RouteExchange::is_valid() {

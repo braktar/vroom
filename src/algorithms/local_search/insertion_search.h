@@ -49,17 +49,6 @@ compute_best_insertion_single(const Input& input,
          ++rank) {
       Eval current_eval =
         utils::addition_eval(input, j, v_target, route.route, rank);
-      if constexpr (std::is_same_v<Route, TWRoute>) {
-        if (input.has_nonzero_per_wait_hour()) {
-          std::vector<Index> route_with_job = route.route;
-          route_with_job.insert(route_with_job.begin() +
-                                  static_cast<std::ptrdiff_t>(rank),
-                                j);
-          current_eval.cost += utils::wait_insertion_marginal_cost(input,
-                                                                   route,
-                                                                   route_with_job);
-        }
-      }
       if (current_eval.cost < result.eval.cost &&
           v_target.ok_for_range_bounds(sol_state.route_evals[v] +
                                        current_eval) &&
@@ -70,6 +59,16 @@ compute_best_insertion_single(const Input& input,
                                                current_job.delivery,
                                                rank) &&
           route.is_valid_addition_for_tw(input, j, rank)) {
+        if constexpr (std::is_same_v<Route, TWRoute>) {
+          if (input.has_nonzero_per_wait_hour()) {
+            std::vector<Index> route_with_job = route.route;
+            route_with_job.insert(route_with_job.begin() +
+                                    static_cast<std::ptrdiff_t>(rank),
+                                  j);
+            current_eval.cost += utils::wait_insertion_marginal_cost(
+              input, route, route_with_job);
+          }
+        }
         result.eval = current_eval;
         result.delivery = current_job.delivery;
         result.single_rank = rank;
@@ -200,31 +199,6 @@ RouteInsertion compute_best_insertion_pd(const Input& input,
         pd_eval = p_add + d_adds[delivery_r];
       }
 
-      if constexpr (std::is_same_v<Route, TWRoute>) {
-        if (input.has_nonzero_per_wait_hour()) {
-          std::vector<Index> route_with_pd;
-          route_with_pd.reserve(route.route.size() + 2);
-          route_with_pd.insert(route_with_pd.end(),
-                               route.route.begin(),
-                               route.route.begin() +
-                                 static_cast<std::ptrdiff_t>(pickup_r));
-          route_with_pd.push_back(j);
-          route_with_pd.insert(route_with_pd.end(),
-                               route.route.begin() +
-                                 static_cast<std::ptrdiff_t>(pickup_r),
-                               route.route.begin() +
-                                 static_cast<std::ptrdiff_t>(delivery_r));
-          route_with_pd.push_back(j + 1);
-          route_with_pd.insert(route_with_pd.end(),
-                               route.route.begin() +
-                                 static_cast<std::ptrdiff_t>(delivery_r),
-                               route.route.end());
-          pd_eval.cost += utils::wait_insertion_marginal_cost(input,
-                                                              route,
-                                                              route_with_pd);
-        }
-      }
-
       if (pd_eval < result.eval &&
           v_target.ok_for_range_bounds(sol_state.route_evals[v] + pd_eval)) {
         modified_with_pd.push_back(j + 1);
@@ -248,6 +222,30 @@ RouteInsertion compute_best_insertion_pd(const Input& input,
         modified_with_pd.pop_back();
 
         if (is_valid) {
+          if constexpr (std::is_same_v<Route, TWRoute>) {
+            if (input.has_nonzero_per_wait_hour()) {
+              std::vector<Index> route_with_pd;
+              route_with_pd.reserve(route.route.size() + 2);
+              route_with_pd.insert(route_with_pd.end(),
+                                   route.route.begin(),
+                                   route.route.begin() +
+                                     static_cast<std::ptrdiff_t>(pickup_r));
+              route_with_pd.push_back(j);
+              route_with_pd.insert(route_with_pd.end(),
+                                   route.route.begin() +
+                                     static_cast<std::ptrdiff_t>(pickup_r),
+                                   route.route.begin() +
+                                     static_cast<std::ptrdiff_t>(delivery_r));
+              route_with_pd.push_back(j + 1);
+              route_with_pd.insert(route_with_pd.end(),
+                                   route.route.begin() +
+                                     static_cast<std::ptrdiff_t>(delivery_r),
+                                   route.route.end());
+              pd_eval.cost += utils::wait_insertion_marginal_cost(input,
+                                                                  route,
+                                                                  route_with_pd);
+            }
+          }
           result.eval = pd_eval;
           result.delivery = modified_delivery;
           result.pickup_rank = pickup_r;

@@ -33,6 +33,15 @@ TwoOpt::TwoOpt(const Input& input,
 }
 
 void TwoOpt::compute_gain() {
+  set_wait_gain_upper_bound(
+    utils::wait_gain_upper_bound_from_routes(_input,
+                                             s_vehicle,
+                                             s_route,
+                                             &_tw_s_route,
+                                             t_vehicle,
+                                             t_route,
+                                             &_tw_t_route));
+
   cvrp::TwoOpt::compute_gain();
 
   auto ns = s_route;
@@ -59,7 +68,8 @@ void TwoOpt::compute_gain() {
                                                        t_route,
                                                        nt,
                                                        &_tw_s_route,
-                                                       &_tw_t_route);
+                                                       &_tw_t_route,
+                                                       best_known_threshold);
 }
 
 bool TwoOpt::is_valid() {

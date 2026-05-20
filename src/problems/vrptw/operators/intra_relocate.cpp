@@ -28,6 +28,9 @@ IntraRelocate::IntraRelocate(const Input& input,
 }
 
 void IntraRelocate::compute_gain() {
+  set_wait_gain_upper_bound(utils::wait_gain_upper_bound_from_route(
+    _input, s_vehicle, s_route, &_tw_s_route));
+
   cvrp::IntraRelocate::compute_gain();
 
   auto nr = s_route;
@@ -40,7 +43,8 @@ void IntraRelocate::compute_gain() {
                                                       s_vehicle,
                                                       s_route,
                                                       nr,
-                                                      &_tw_s_route);
+                                                      &_tw_s_route,
+                                                      best_known_threshold);
 }
 
 bool IntraRelocate::is_valid() {

@@ -73,6 +73,16 @@ SwapStar::SwapStar(const Input& input,
 }
 
 void SwapStar::compute_gain() {
+  set_wait_gain_upper_bound(
+    utils::wait_gain_upper_bound_from_routes(_input,
+                                             s_vehicle,
+                                             s_route,
+                                             &_tw_s_route,
+                                             t_vehicle,
+                                             t_route,
+                                             &_tw_t_route));
+  best_known_threshold = _best_known_gain;
+
   choice = ls::compute_best_swap_star_choice(_input,
                                              _sol_state,
                                              s_vehicle,
@@ -96,7 +106,8 @@ void SwapStar::compute_gain() {
                                                          t_route,
                                                          nt,
                                                          &_tw_s_route,
-                                                         &_tw_t_route);
+                                                         &_tw_t_route,
+                                                         best_known_threshold);
   }
   gain_computed = true;
 }

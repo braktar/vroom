@@ -196,7 +196,11 @@ If no custom matrix is provided:
 
 ### Depot release in VRPTW
 
-Vehicle `time_window.start` is the **earliest** departure from `start`; optional `departure` is the **latest** departure (within `time_window`). Feasibility relies on propagated earliest dates along routes. **Billable waiting** for `per_wait_hour` is computed on the same schedule as the output: one backward pass picks a depot leave time that limits unnecessary idle downstream; if `departure` is set, the leave time is also bounded by it. A forward pass from that leave time then sums idle time at the depot before departure, plus any waits at breaks and jobs when the vehicle is early and must wait for a window—matching the timeline built by `format_route`. VRPTW local search uses this same billable-wait notion to adjust move gains when `per_wait_hour` is non-zero on the relevant vehicles and those vehicles have no breaks (vehicles with mandatory breaks skip this gain adjustment).
+Vehicle `time_window.start` is the **earliest** departure from `start`; optional `departure` is the **latest** departure (within `time_window`). Feasibility relies on propagated earliest dates along routes. **Billable waiting** for `per_wait_hour` is computed on the same schedule as the output: one backward pass picks a depot leave time that limits unnecessary idle downstream; if `departure` is set, the leave time is also bounded by it. A forward pass from that leave time then sums idle time at the depot before departure, plus any waits at breaks and jobs when the vehicle is early and must wait for a window—matching the timeline built by `format_route`.
+
+When `per_wait_hour` is non-zero, VRPTW local search adjusts move gains using billable wait (vehicles with mandatory breaks skip this). Exploration uses a **hybrid** strategy: fast upper bounds and forward approximations prune unpromising candidates; exact wait evaluation runs only when a move may beat the current best. Final `summary.cost` and route `waiting_time` always use the exact billable-wait definition above.
+
+**Calibrating `per_wait_hour`:** with default `per_hour` (`3600`), one second of billable wait costs about as much as one second of travel in `summary.cost`. In practice, depot idle and early arrivals at jobs can add up quickly, so wait often dominates the objective when `per_wait_hour` equals `per_hour`. For a tie-break effect, use `per_wait_hour` around **10–25%** of `per_hour` (e.g. `360`–`900` when `per_hour` is `3600`). Set `per_wait_hour` to `0` to ignore wait in optimization (default).
 
 ### Capacity restrictions
 
