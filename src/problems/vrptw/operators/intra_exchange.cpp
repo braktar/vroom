@@ -35,27 +35,33 @@ void IntraExchange::compute_gain() {
 
   cvrp::IntraExchange::compute_gain();
 
-  auto nr = s_route;
-  std::copy(_moved_jobs.begin(),
-            _moved_jobs.end(),
-            nr.begin() + static_cast<std::ptrdiff_t>(_first_rank));
-  utils::adjust_stored_gain_for_wait_approx_one_route(_input,
-                                                      stored_gain,
-                                                      s_vehicle,
-                                                      s_route,
-                                                      nr,
-                                                      &_tw_s_route,
-                                                      best_known_threshold);
+  utils::adjust_one_route_moved_jobs_wait_gain(_input,
+                                               stored_gain,
+                                               s_vehicle,
+                                               s_route,
+                                               _first_rank,
+                                               _moved_jobs,
+                                               &_tw_s_route,
+                                               best_known_threshold);
 }
 
 bool IntraExchange::is_valid() {
-  return cvrp::IntraExchange::is_valid() &&
-         _tw_s_route.is_valid_addition_for_tw(_input,
-                                              _delivery,
-                                              _moved_jobs.begin(),
-                                              _moved_jobs.end(),
-                                              _first_rank,
-                                              _last_rank);
+  if (!cvrp::IntraExchange::is_valid() ||
+      !_tw_s_route.is_valid_addition_for_tw(_input,
+                                            _delivery,
+                                            _moved_jobs.begin(),
+                                            _moved_jobs.end(),
+                                            _first_rank,
+                                            _last_rank)) {
+    return false;
+  }
+
+  std::vector<Index> route_after;
+  utils::build_one_route_after_moved_jobs(s_route,
+                                          _first_rank,
+                                          _moved_jobs,
+                                          route_after);
+  return utils::route_jobs_within_max_duration(_input, s_vehicle, route_after);
 }
 
 void IntraExchange::apply() {

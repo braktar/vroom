@@ -124,7 +124,7 @@ A `vehicle` object has the following properties:
 | [`max_tasks`] | an integer defining the maximum number of tasks in a route for this vehicle |
 | [`max_travel_time`] | an integer defining the maximum travel time for this vehicle |
 | [`max_distance`] | an integer defining the maximum distance for this vehicle |
-| [`max_duration`] | an integer defining the maximum total route duration for this vehicle (travel + setup + service + waiting time; distinct from `max_travel_time`, which only caps travel time) |
+| [`max_duration`] | an integer defining the maximum total route duration for this vehicle (travel + setup + service + waiting time; distinct from `max_travel_time`, which only caps travel time). Exact enforcement during optimization is skipped for vehicles with `breaks` (same as billable wait below); violations may still appear in the solution timeline |
 | [`steps`] | an array of `vehicle_step` objects describing a custom route for this vehicle |
 | [`departure`] | optional integer (seconds): **latest** time at which the vehicle may leave the `start` location |
 
@@ -199,7 +199,9 @@ If no custom matrix is provided:
 
 Vehicle `time_window.start` is the **earliest** departure from `start`; optional `departure` is the **latest** departure (within `time_window`). Feasibility relies on propagated earliest dates along routes. **Billable waiting** for `per_wait_hour` is computed on the same schedule as the output: one backward pass picks a depot leave time that limits unnecessary idle downstream; if `departure` is set, the leave time is also bounded by it. A forward pass from that leave time then sums idle time at the depot before departure, plus any waits at breaks and jobs when the vehicle is early and must wait for a window—matching the timeline built by `format_route`.
 
-When `per_wait_hour` is non-zero, VRPTW local search adjusts move gains using billable wait (vehicles with mandatory breaks skip this). Exploration uses a **hybrid** strategy: fast upper bounds and forward approximations prune unpromising candidates; exact wait evaluation runs only when a move may beat the current best. Final `summary.cost` and route `waiting_time` always use the exact billable-wait definition above. Set `per_wait_hour` to `0` to ignore wait in optimization (default).
+When `per_wait_hour` is non-zero, VRPTW local search adjusts move gains using billable wait (vehicles with mandatory `breaks` skip this). Exploration uses a **hybrid** strategy: fast upper bounds and forward approximations prune unpromising candidates; exact wait evaluation runs only when a move may beat the current best. Final `summary.cost` and route `waiting_time` always use the exact billable-wait definition above. Set `per_wait_hour` to `0` to ignore wait in optimization (default).
+
+In production, `per_wait_hour` is often set close to `per_hour` or slightly below (e.g. 75–90% of travel cost) when idle time should be discouraged without outweighing routing distance.
 
 ### Capacity restrictions
 

@@ -41,17 +41,14 @@ void IntraMixedExchange::compute_gain() {
   if (reverse_t_edge) {
     std::swap(moved[_t_edge_first], moved[_t_edge_last]);
   }
-  auto nr = s_route;
-  std::copy(moved.begin(),
-            moved.end(),
-            nr.begin() + static_cast<std::ptrdiff_t>(_first_rank));
-  utils::adjust_stored_gain_for_wait_approx_one_route(_input,
-                                                      stored_gain,
-                                                      s_vehicle,
-                                                      s_route,
-                                                      nr,
-                                                      &_tw_s_route,
-                                                      best_known_threshold);
+  utils::adjust_one_route_moved_jobs_wait_gain(_input,
+                                               stored_gain,
+                                               s_vehicle,
+                                               s_route,
+                                               _first_rank,
+                                               moved,
+                                               &_tw_s_route,
+                                               best_known_threshold);
 }
 
 bool IntraMixedExchange::is_valid() {
@@ -86,7 +83,31 @@ bool IntraMixedExchange::is_valid() {
     valid = s_is_normal_valid || s_is_reverse_valid;
   }
 
-  return valid;
+  if (!valid) {
+    return false;
+  }
+
+  if (_input.vehicles[s_vehicle].max_duration == DEFAULT_MAX_DURATION) {
+    return true;
+  }
+
+  auto check = [&](bool reverse) {
+    if (!(reverse ? s_is_reverse_valid : s_is_normal_valid)) {
+      return false;
+    }
+    auto moved = _moved_jobs;
+    if (reverse) {
+      std::swap(moved[_t_edge_first], moved[_t_edge_last]);
+    }
+    std::vector<Index> route_after;
+    utils::build_one_route_after_moved_jobs(s_route,
+                                            _first_rank,
+                                            moved,
+                                            route_after);
+    return utils::route_jobs_within_max_duration(_input, s_vehicle, route_after);
+  };
+
+  return check(false) || (check_t_reverse && check(true));
 }
 
 void IntraMixedExchange::apply() {

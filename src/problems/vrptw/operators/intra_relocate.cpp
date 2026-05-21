@@ -33,11 +33,8 @@ void IntraRelocate::compute_gain() {
 
   cvrp::IntraRelocate::compute_gain();
 
-  auto nr = s_route;
-  const auto moved = nr[s_rank];
-  nr.erase(nr.begin() + static_cast<std::ptrdiff_t>(s_rank));
-  nr.insert(nr.begin() + static_cast<std::ptrdiff_t>(t_rank), moved);
-
+  std::vector<Index> nr;
+  utils::build_intra_relocate_post_route(s_route, s_rank, t_rank, nr);
   utils::adjust_stored_gain_for_wait_approx_one_route(_input,
                                                       stored_gain,
                                                       s_vehicle,
@@ -58,16 +55,8 @@ bool IntraRelocate::is_valid() {
     return false;
   }
 
-  if (_input.vehicles[s_vehicle].max_duration == DEFAULT_MAX_DURATION) {
-    return true;
-  }
-
-  auto route_after = s_route;
-  const auto moved = route_after[s_rank];
-  route_after.erase(route_after.begin() + static_cast<std::ptrdiff_t>(s_rank));
-  route_after.insert(route_after.begin() + static_cast<std::ptrdiff_t>(t_rank),
-                     moved);
-
+  std::vector<Index> route_after;
+  utils::build_intra_relocate_post_route(s_route, s_rank, t_rank, route_after);
   return utils::route_jobs_within_max_duration(_input, s_vehicle, route_after);
 }
 

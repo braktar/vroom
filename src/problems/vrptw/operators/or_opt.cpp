@@ -44,28 +44,18 @@ void OrOpt::compute_gain() {
 
   cvrp::OrOpt::compute_gain();
 
-  auto ns = s_route;
-  auto nt = t_route;
-  nt.insert(nt.begin() + static_cast<std::ptrdiff_t>(t_rank),
-            ns.begin() + static_cast<std::ptrdiff_t>(s_rank),
-            ns.begin() + static_cast<std::ptrdiff_t>(s_rank) + 2);
-  if (reverse_s_edge) {
-    std::swap(nt[t_rank], nt[t_rank + 1]);
-  }
-  ns.erase(ns.begin() + static_cast<std::ptrdiff_t>(s_rank),
-           ns.begin() + static_cast<std::ptrdiff_t>(s_rank) + 2);
-
-  utils::adjust_stored_gain_for_wait_approx_two_routes(_input,
-                                                       stored_gain,
-                                                       s_vehicle,
-                                                       s_route,
-                                                       ns,
-                                                       t_vehicle,
-                                                       t_route,
-                                                       nt,
-                                                       &_tw_s_route,
-                                                       &_tw_t_route,
-                                                       best_known_threshold);
+  utils::adjust_or_opt_wait_gain(_input,
+                                 stored_gain,
+                                 s_vehicle,
+                                 s_route,
+                                 s_rank,
+                                 reverse_s_edge,
+                                 t_vehicle,
+                                 t_route,
+                                 t_rank,
+                                 &_tw_s_route,
+                                 &_tw_t_route,
+                                 best_known_threshold);
 }
 
 bool OrOpt::is_valid() {
@@ -95,7 +85,19 @@ bool OrOpt::is_valid() {
     valid = is_normal_valid || is_reverse_valid;
   }
 
-  return valid;
+  if (!valid) {
+    return false;
+  }
+
+  return utils::or_opt_within_max_duration(_input,
+                                           s_vehicle,
+                                           s_route,
+                                           s_rank,
+                                           t_vehicle,
+                                           t_route,
+                                           t_rank,
+                                           is_normal_valid,
+                                           is_reverse_valid);
 }
 
 void OrOpt::apply() {

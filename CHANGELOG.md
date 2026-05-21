@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+### Added
+
+#### Features
+
+- `costs.per_wait_hour` on vehicles to penalize billable waiting time in the optimization objective (VRPTW)
+- Optional vehicle `departure` (latest leave time from `start`, within `time_window`)
+- `max_duration` vehicle bound (travel + setup + service + waiting; distinct from `max_travel_time`)
+
+#### Internals
+
+- Billable wait aligned with output timeline (`billable_total_wait`)
+- VRPTW local search: hybrid wait-cost pruning and `max_duration` checks on all operators
+- Self-test scripts: `scripts/wait_objective_selftest.sh`, `scripts/max_duration_selftest.sh`
+
 ### Fixed
 
 #### Internals

@@ -107,6 +107,260 @@ bool route_jobs_within_max_duration(const Input& input,
   return vehicle.ok_for_total_duration(eval);
 }
 
+void build_relocate_post_routes(const std::vector<Index>& s_route,
+                                Index s_rank,
+                                const std::vector<Index>& t_route,
+                                Index t_rank,
+                                std::vector<Index>& source_after,
+                                std::vector<Index>& target_after) {
+  source_after = s_route;
+  source_after.erase(source_after.begin() + static_cast<std::ptrdiff_t>(s_rank));
+  target_after = t_route;
+  target_after.insert(target_after.begin() + static_cast<std::ptrdiff_t>(t_rank),
+                      s_route[s_rank]);
+}
+
+void build_two_opt_post_routes(const std::vector<Index>& s_route,
+                               Index s_rank,
+                               const std::vector<Index>& t_route,
+                               Index t_rank,
+                               std::vector<Index>& source_after,
+                               std::vector<Index>& target_after) {
+  source_after = s_route;
+  target_after = t_route;
+  const auto nb_source = source_after.size() - 1 - s_rank;
+  target_after.insert(target_after.begin() + static_cast<std::ptrdiff_t>(t_rank) + 1,
+                      source_after.begin() + static_cast<std::ptrdiff_t>(s_rank) + 1,
+                      source_after.end());
+  source_after.erase(source_after.begin() + static_cast<std::ptrdiff_t>(s_rank) + 1,
+                     source_after.end());
+  source_after.insert(source_after.end(),
+                      target_after.begin() + static_cast<std::ptrdiff_t>(t_rank) + 1 +
+                        static_cast<std::ptrdiff_t>(nb_source),
+                      target_after.end());
+  target_after.erase(target_after.begin() + static_cast<std::ptrdiff_t>(t_rank) + 1 +
+                       static_cast<std::ptrdiff_t>(nb_source),
+                     target_after.end());
+}
+
+void build_reverse_two_opt_post_routes(const std::vector<Index>& s_route,
+                                       Index s_rank,
+                                       const std::vector<Index>& t_route,
+                                       Index t_rank,
+                                       std::vector<Index>& source_after,
+                                       std::vector<Index>& target_after) {
+  source_after = s_route;
+  target_after = t_route;
+  const auto nb_source = source_after.size() - 1 - s_rank;
+  target_after.insert(target_after.begin(),
+                      source_after.rbegin(),
+                      source_after.rbegin() + static_cast<std::ptrdiff_t>(nb_source));
+  source_after.erase(source_after.begin() + static_cast<std::ptrdiff_t>(s_rank) + 1,
+                     source_after.end());
+  source_after.insert(source_after.end(),
+                      target_after.rend() - static_cast<std::ptrdiff_t>(t_rank) -
+                        static_cast<std::ptrdiff_t>(nb_source) - 1,
+                      target_after.rend() - static_cast<std::ptrdiff_t>(nb_source));
+  target_after.erase(target_after.begin() + static_cast<std::ptrdiff_t>(nb_source),
+                     target_after.begin() + static_cast<std::ptrdiff_t>(nb_source) +
+                       static_cast<std::ptrdiff_t>(t_rank) + 1);
+}
+
+void build_or_opt_post_routes(const std::vector<Index>& s_route,
+                              Index s_rank,
+                              const std::vector<Index>& t_route,
+                              Index t_rank,
+                              bool reverse_s_edge,
+                              std::vector<Index>& source_after,
+                              std::vector<Index>& target_after) {
+  source_after = s_route;
+  target_after = t_route;
+  target_after.insert(target_after.begin() + static_cast<std::ptrdiff_t>(t_rank),
+                      source_after.begin() + static_cast<std::ptrdiff_t>(s_rank),
+                      source_after.begin() + static_cast<std::ptrdiff_t>(s_rank) + 2);
+  if (reverse_s_edge) {
+    std::swap(target_after[t_rank], target_after[t_rank + 1]);
+  }
+  source_after.erase(source_after.begin() + static_cast<std::ptrdiff_t>(s_rank),
+                     source_after.begin() + static_cast<std::ptrdiff_t>(s_rank) + 2);
+}
+
+void build_cross_exchange_post_routes(const std::vector<Index>& s_route,
+                                      Index s_rank,
+                                      const std::vector<Index>& t_route,
+                                      Index t_rank,
+                                      bool reverse_s_edge,
+                                      bool reverse_t_edge,
+                                      std::vector<Index>& source_after,
+                                      std::vector<Index>& target_after) {
+  source_after = s_route;
+  target_after = t_route;
+  std::swap(source_after[s_rank], target_after[t_rank]);
+  std::swap(source_after[s_rank + 1], target_after[t_rank + 1]);
+  if (reverse_s_edge) {
+    std::swap(target_after[t_rank], target_after[t_rank + 1]);
+  }
+  if (reverse_t_edge) {
+    std::swap(source_after[s_rank], source_after[s_rank + 1]);
+  }
+}
+
+void build_mixed_exchange_post_routes(const std::vector<Index>& s_route,
+                                      Index s_rank,
+                                      const std::vector<Index>& t_route,
+                                      Index t_rank,
+                                      bool reverse_t_edge,
+                                      std::vector<Index>& source_after,
+                                      std::vector<Index>& target_after) {
+  source_after = s_route;
+  target_after = t_route;
+  std::swap(source_after[s_rank], target_after[t_rank]);
+  source_after.insert(source_after.begin() + static_cast<std::ptrdiff_t>(s_rank) + 1,
+                      target_after.begin() + static_cast<std::ptrdiff_t>(t_rank) + 1,
+                      target_after.begin() + static_cast<std::ptrdiff_t>(t_rank) + 2);
+  target_after.erase(target_after.begin() + static_cast<std::ptrdiff_t>(t_rank) + 1);
+  if (reverse_t_edge) {
+    std::swap(source_after[s_rank], source_after[s_rank + 1]);
+  }
+}
+
+void build_intra_relocate_post_route(const std::vector<Index>& route,
+                                     Index s_rank,
+                                     Index t_rank,
+                                     std::vector<Index>& route_after) {
+  route_after = route;
+  const auto moved = route_after[s_rank];
+  route_after.erase(route_after.begin() + static_cast<std::ptrdiff_t>(s_rank));
+  route_after.insert(route_after.begin() + static_cast<std::ptrdiff_t>(t_rank), moved);
+}
+
+void build_one_route_after_moved_jobs(
+  const std::vector<Index>& route,
+  Index first_rank,
+  const std::vector<Index>& moved_jobs,
+  std::vector<Index>& route_after) {
+  route_after = route;
+  std::copy(moved_jobs.begin(),
+            moved_jobs.end(),
+            route_after.begin() + static_cast<std::ptrdiff_t>(first_rank));
+}
+
+bool cross_exchange_within_max_duration(
+  const Input& input,
+  Index s_vehicle,
+  const std::vector<Index>& s_route,
+  Index s_rank,
+  Index t_vehicle,
+  const std::vector<Index>& t_route,
+  Index t_rank,
+  bool s_is_normal_valid,
+  bool s_is_reverse_valid,
+  bool t_is_normal_valid,
+  bool t_is_reverse_valid,
+  bool check_s_reverse,
+  bool check_t_reverse) {
+  if (input.vehicles[s_vehicle].max_duration == DEFAULT_MAX_DURATION &&
+      input.vehicles[t_vehicle].max_duration == DEFAULT_MAX_DURATION) {
+    return true;
+  }
+
+  std::vector<Index> ns;
+  std::vector<Index> nt;
+  auto combo_ok = [&](bool reverse_s, bool reverse_t) {
+    if (!(reverse_s ? s_is_reverse_valid : s_is_normal_valid) ||
+        !(reverse_t ? t_is_reverse_valid : t_is_normal_valid)) {
+      return false;
+    }
+    build_cross_exchange_post_routes(s_route,
+                                     s_rank,
+                                     t_route,
+                                     t_rank,
+                                     reverse_s,
+                                     reverse_t,
+                                     ns,
+                                     nt);
+    return routes_within_max_duration(input, s_vehicle, ns, t_vehicle, nt);
+  };
+
+  if (combo_ok(false, false)) {
+    return true;
+  }
+  if (check_t_reverse && combo_ok(false, true)) {
+    return true;
+  }
+  if (check_s_reverse && combo_ok(true, false)) {
+    return true;
+  }
+  if (check_s_reverse && check_t_reverse && combo_ok(true, true)) {
+    return true;
+  }
+  return false;
+}
+
+bool or_opt_within_max_duration(const Input& input,
+                                Index s_vehicle,
+                                const std::vector<Index>& s_route,
+                                Index s_rank,
+                                Index t_vehicle,
+                                const std::vector<Index>& t_route,
+                                Index t_rank,
+                                bool is_normal_valid,
+                                bool is_reverse_valid) {
+  if (input.vehicles[s_vehicle].max_duration == DEFAULT_MAX_DURATION &&
+      input.vehicles[t_vehicle].max_duration == DEFAULT_MAX_DURATION) {
+    return true;
+  }
+
+  std::vector<Index> ns;
+  std::vector<Index> nt;
+  if (is_normal_valid) {
+    build_or_opt_post_routes(s_route, s_rank, t_route, t_rank, false, ns, nt);
+    if (routes_within_max_duration(input, s_vehicle, ns, t_vehicle, nt)) {
+      return true;
+    }
+  }
+  if (is_reverse_valid) {
+    build_or_opt_post_routes(s_route, s_rank, t_route, t_rank, true, ns, nt);
+    return routes_within_max_duration(input, s_vehicle, ns, t_vehicle, nt);
+  }
+  return false;
+}
+
+bool mixed_exchange_within_max_duration(
+  const Input& input,
+  Index s_vehicle,
+  const std::vector<Index>& s_route,
+  Index s_rank,
+  Index t_vehicle,
+  const std::vector<Index>& t_route,
+  Index t_rank,
+  bool s_is_normal_valid,
+  bool s_is_reverse_valid,
+  bool check_t_reverse) {
+  if (input.vehicles[s_vehicle].max_duration == DEFAULT_MAX_DURATION &&
+      input.vehicles[t_vehicle].max_duration == DEFAULT_MAX_DURATION) {
+    return true;
+  }
+
+  std::vector<Index> ns;
+  std::vector<Index> nt;
+  auto combo_ok = [&](bool reverse_t) {
+    if (!(reverse_t ? s_is_reverse_valid : s_is_normal_valid)) {
+      return false;
+    }
+    build_mixed_exchange_post_routes(s_route,
+                                     s_rank,
+                                     t_route,
+                                     t_rank,
+                                     reverse_t,
+                                     ns,
+                                     nt);
+    return routes_within_max_duration(input, s_vehicle, ns, t_vehicle, nt);
+  };
+
+  return combo_ok(false) || (check_t_reverse && combo_ok(true));
+}
+
 bool insertion_respects_vehicle_bounds(const Input& input,
                                        Index vehicle_rank,
                                        const Eval& route_eval,
@@ -366,6 +620,233 @@ Cost wait_insertion_marginal_cost(const Input& input,
     return *old_wc - *new_wc_exact;
   }
   return *old_wc - *new_wc;
+}
+
+void adjust_relocate_wait_gain(const Input& input,
+                               Eval& stored_gain,
+                               Index s_vehicle,
+                               const std::vector<Index>& s_route,
+                               Index s_rank,
+                               Index t_vehicle,
+                               const std::vector<Index>& t_route,
+                               Index t_rank,
+                               const TWRoute* tw_s_route,
+                               const TWRoute* tw_t_route,
+                               Eval best_known) {
+  std::vector<Index> ns;
+  std::vector<Index> nt;
+  build_relocate_post_routes(s_route, s_rank, t_route, t_rank, ns, nt);
+  adjust_stored_gain_for_wait_approx_two_routes(input,
+                                                stored_gain,
+                                                s_vehicle,
+                                                s_route,
+                                                ns,
+                                                t_vehicle,
+                                                t_route,
+                                                nt,
+                                                tw_s_route,
+                                                tw_t_route,
+                                                best_known);
+}
+
+void adjust_two_opt_wait_gain(const Input& input,
+                              Eval& stored_gain,
+                              Index s_vehicle,
+                              const std::vector<Index>& s_route,
+                              Index s_rank,
+                              Index t_vehicle,
+                              const std::vector<Index>& t_route,
+                              Index t_rank,
+                              const TWRoute* tw_s_route,
+                              const TWRoute* tw_t_route,
+                              Eval best_known) {
+  std::vector<Index> ns;
+  std::vector<Index> nt;
+  build_two_opt_post_routes(s_route, s_rank, t_route, t_rank, ns, nt);
+  adjust_stored_gain_for_wait_approx_two_routes(input,
+                                                stored_gain,
+                                                s_vehicle,
+                                                s_route,
+                                                ns,
+                                                t_vehicle,
+                                                t_route,
+                                                nt,
+                                                tw_s_route,
+                                                tw_t_route,
+                                                best_known);
+}
+
+void adjust_reverse_two_opt_wait_gain(const Input& input,
+                                      Eval& stored_gain,
+                                      Index s_vehicle,
+                                      const std::vector<Index>& s_route,
+                                      Index s_rank,
+                                      Index t_vehicle,
+                                      const std::vector<Index>& t_route,
+                                      Index t_rank,
+                                      const TWRoute* tw_s_route,
+                                      const TWRoute* tw_t_route,
+                                      Eval best_known) {
+  std::vector<Index> ns;
+  std::vector<Index> nt;
+  build_reverse_two_opt_post_routes(s_route, s_rank, t_route, t_rank, ns, nt);
+  adjust_stored_gain_for_wait_approx_two_routes(input,
+                                                stored_gain,
+                                                s_vehicle,
+                                                s_route,
+                                                ns,
+                                                t_vehicle,
+                                                t_route,
+                                                nt,
+                                                tw_s_route,
+                                                tw_t_route,
+                                                best_known);
+}
+
+void adjust_or_opt_wait_gain(const Input& input,
+                             Eval& stored_gain,
+                             Index s_vehicle,
+                             const std::vector<Index>& s_route,
+                             Index s_rank,
+                             bool reverse_s_edge,
+                             Index t_vehicle,
+                             const std::vector<Index>& t_route,
+                             Index t_rank,
+                             const TWRoute* tw_s_route,
+                             const TWRoute* tw_t_route,
+                             Eval best_known) {
+  std::vector<Index> ns;
+  std::vector<Index> nt;
+  build_or_opt_post_routes(s_route,
+                           s_rank,
+                           t_route,
+                           t_rank,
+                           reverse_s_edge,
+                           ns,
+                           nt);
+  adjust_stored_gain_for_wait_approx_two_routes(input,
+                                                stored_gain,
+                                                s_vehicle,
+                                                s_route,
+                                                ns,
+                                                t_vehicle,
+                                                t_route,
+                                                nt,
+                                                tw_s_route,
+                                                tw_t_route,
+                                                best_known);
+}
+
+void adjust_cross_exchange_wait_gain(const Input& input,
+                                     Eval& stored_gain,
+                                     Index s_vehicle,
+                                     const std::vector<Index>& s_route,
+                                     Index s_rank,
+                                     bool reverse_s_edge,
+                                     bool reverse_t_edge,
+                                     Index t_vehicle,
+                                     const std::vector<Index>& t_route,
+                                     Index t_rank,
+                                     const TWRoute* tw_s_route,
+                                     const TWRoute* tw_t_route,
+                                     Eval best_known) {
+  std::vector<Index> ns;
+  std::vector<Index> nt;
+  build_cross_exchange_post_routes(s_route,
+                                   s_rank,
+                                   t_route,
+                                   t_rank,
+                                   reverse_s_edge,
+                                   reverse_t_edge,
+                                   ns,
+                                   nt);
+  adjust_stored_gain_for_wait_approx_two_routes(input,
+                                                stored_gain,
+                                                s_vehicle,
+                                                s_route,
+                                                ns,
+                                                t_vehicle,
+                                                t_route,
+                                                nt,
+                                                tw_s_route,
+                                                tw_t_route,
+                                                best_known);
+}
+
+void adjust_mixed_exchange_wait_gain(const Input& input,
+                                     Eval& stored_gain,
+                                     Index s_vehicle,
+                                     const std::vector<Index>& s_route,
+                                     Index s_rank,
+                                     bool reverse_t_edge,
+                                     Index t_vehicle,
+                                     const std::vector<Index>& t_route,
+                                     Index t_rank,
+                                     const TWRoute* tw_s_route,
+                                     const TWRoute* tw_t_route,
+                                     Eval best_known) {
+  std::vector<Index> ns;
+  std::vector<Index> nt;
+  build_mixed_exchange_post_routes(s_route,
+                                   s_rank,
+                                   t_route,
+                                   t_rank,
+                                   reverse_t_edge,
+                                   ns,
+                                   nt);
+  adjust_stored_gain_for_wait_approx_two_routes(input,
+                                                stored_gain,
+                                                s_vehicle,
+                                                s_route,
+                                                ns,
+                                                t_vehicle,
+                                                t_route,
+                                                nt,
+                                                tw_s_route,
+                                                tw_t_route,
+                                                best_known);
+}
+
+void adjust_route_exchange_wait_gain(const Input& input,
+                                     Eval& stored_gain,
+                                     Index s_vehicle,
+                                     const std::vector<Index>& s_route,
+                                     Index t_vehicle,
+                                     const std::vector<Index>& t_route,
+                                     const TWRoute* tw_s_route,
+                                     const TWRoute* tw_t_route,
+                                     Eval best_known) {
+  adjust_stored_gain_for_wait_approx_two_routes(input,
+                                                stored_gain,
+                                                s_vehicle,
+                                                s_route,
+                                                t_route,
+                                                t_vehicle,
+                                                t_route,
+                                                s_route,
+                                                tw_s_route,
+                                                tw_t_route,
+                                                best_known);
+}
+
+void adjust_one_route_moved_jobs_wait_gain(
+  const Input& input,
+  Eval& stored_gain,
+  Index v,
+  const std::vector<Index>& route_old,
+  Index first_rank,
+  const std::vector<Index>& moved_jobs,
+  const TWRoute* tw_route,
+  Eval best_known) {
+  std::vector<Index> route_new;
+  build_one_route_after_moved_jobs(route_old, first_rank, moved_jobs, route_new);
+  adjust_stored_gain_for_wait_approx_one_route(input,
+                                               stored_gain,
+                                               v,
+                                               route_old,
+                                               route_new,
+                                               tw_route,
+                                               best_known);
 }
 
 void adjust_stored_gain_for_wait_approx_two_routes(

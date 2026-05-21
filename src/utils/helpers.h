@@ -679,6 +679,110 @@ bool route_jobs_within_max_duration(const Input& input,
                                     Index vehicle_rank,
                                     const std::vector<Index>& jobs);
 
+inline bool routes_within_max_duration(const Input& input,
+                                       Index v1,
+                                       const std::vector<Index>& jobs1,
+                                       Index v2,
+                                       const std::vector<Index>& jobs2) {
+  return route_jobs_within_max_duration(input, v1, jobs1) &&
+         route_jobs_within_max_duration(input, v2, jobs2);
+}
+
+// Post-move job sequences for VRPTW local search (match operator apply paths).
+void build_relocate_post_routes(const std::vector<Index>& s_route,
+                                Index s_rank,
+                                const std::vector<Index>& t_route,
+                                Index t_rank,
+                                std::vector<Index>& source_after,
+                                std::vector<Index>& target_after);
+
+void build_two_opt_post_routes(const std::vector<Index>& s_route,
+                               Index s_rank,
+                               const std::vector<Index>& t_route,
+                               Index t_rank,
+                               std::vector<Index>& source_after,
+                               std::vector<Index>& target_after);
+
+void build_reverse_two_opt_post_routes(const std::vector<Index>& s_route,
+                                       Index s_rank,
+                                       const std::vector<Index>& t_route,
+                                       Index t_rank,
+                                       std::vector<Index>& source_after,
+                                       std::vector<Index>& target_after);
+
+void build_or_opt_post_routes(const std::vector<Index>& s_route,
+                              Index s_rank,
+                              const std::vector<Index>& t_route,
+                              Index t_rank,
+                              bool reverse_s_edge,
+                              std::vector<Index>& source_after,
+                              std::vector<Index>& target_after);
+
+void build_cross_exchange_post_routes(const std::vector<Index>& s_route,
+                                      Index s_rank,
+                                      const std::vector<Index>& t_route,
+                                      Index t_rank,
+                                      bool reverse_s_edge,
+                                      bool reverse_t_edge,
+                                      std::vector<Index>& source_after,
+                                      std::vector<Index>& target_after);
+
+void build_mixed_exchange_post_routes(const std::vector<Index>& s_route,
+                                      Index s_rank,
+                                      const std::vector<Index>& t_route,
+                                      Index t_rank,
+                                      bool reverse_t_edge,
+                                      std::vector<Index>& source_after,
+                                      std::vector<Index>& target_after);
+
+void build_intra_relocate_post_route(const std::vector<Index>& route,
+                                     Index s_rank,
+                                     Index t_rank,
+                                     std::vector<Index>& route_after);
+
+void build_one_route_after_moved_jobs(
+  const std::vector<Index>& route,
+  Index first_rank,
+  const std::vector<Index>& moved_jobs,
+  std::vector<Index>& route_after);
+
+bool cross_exchange_within_max_duration(
+  const Input& input,
+  Index s_vehicle,
+  const std::vector<Index>& s_route,
+  Index s_rank,
+  Index t_vehicle,
+  const std::vector<Index>& t_route,
+  Index t_rank,
+  bool s_is_normal_valid,
+  bool s_is_reverse_valid,
+  bool t_is_normal_valid,
+  bool t_is_reverse_valid,
+  bool check_s_reverse,
+  bool check_t_reverse);
+
+bool or_opt_within_max_duration(const Input& input,
+                                Index s_vehicle,
+                                const std::vector<Index>& s_route,
+                                Index s_rank,
+                                Index t_vehicle,
+                                const std::vector<Index>& t_route,
+                                Index t_rank,
+                                bool is_normal_valid,
+                                bool is_reverse_valid);
+
+bool mixed_exchange_within_max_duration(
+  const Input& input,
+  Index s_vehicle,
+  const std::vector<Index>& s_route,
+  Index s_rank,
+  Index t_vehicle,
+  const std::vector<Index>& t_route,
+  Index t_rank,
+  bool s_is_normal_valid,
+  bool s_is_reverse_valid,
+  bool check_t_reverse);
+
 bool insertion_respects_vehicle_bounds(const Input& input,
                                        Index vehicle_rank,
                                        const Eval& route_eval,
@@ -784,6 +888,103 @@ void adjust_stored_gain_for_wait_approx_two_routes(
   const std::vector<Index>& r2_new,
   const TWRoute* tw_r1_old = nullptr,
   const TWRoute* tw_r2_old = nullptr,
+  Eval best_known = NO_EVAL);
+
+// VRPTW LS: wait gain adjustment after cvrp::compute_gain, by operator family.
+void adjust_relocate_wait_gain(const Input& input,
+                               Eval& stored_gain,
+                               Index s_vehicle,
+                               const std::vector<Index>& s_route,
+                               Index s_rank,
+                               Index t_vehicle,
+                               const std::vector<Index>& t_route,
+                               Index t_rank,
+                               const TWRoute* tw_s_route,
+                               const TWRoute* tw_t_route,
+                               Eval best_known = NO_EVAL);
+
+void adjust_two_opt_wait_gain(const Input& input,
+                              Eval& stored_gain,
+                              Index s_vehicle,
+                              const std::vector<Index>& s_route,
+                              Index s_rank,
+                              Index t_vehicle,
+                              const std::vector<Index>& t_route,
+                              Index t_rank,
+                              const TWRoute* tw_s_route,
+                              const TWRoute* tw_t_route,
+                              Eval best_known = NO_EVAL);
+
+void adjust_reverse_two_opt_wait_gain(const Input& input,
+                                      Eval& stored_gain,
+                                      Index s_vehicle,
+                                      const std::vector<Index>& s_route,
+                                      Index s_rank,
+                                      Index t_vehicle,
+                                      const std::vector<Index>& t_route,
+                                      Index t_rank,
+                                      const TWRoute* tw_s_route,
+                                      const TWRoute* tw_t_route,
+                                      Eval best_known = NO_EVAL);
+
+void adjust_or_opt_wait_gain(const Input& input,
+                             Eval& stored_gain,
+                             Index s_vehicle,
+                             const std::vector<Index>& s_route,
+                             Index s_rank,
+                             bool reverse_s_edge,
+                             Index t_vehicle,
+                             const std::vector<Index>& t_route,
+                             Index t_rank,
+                             const TWRoute* tw_s_route,
+                             const TWRoute* tw_t_route,
+                             Eval best_known = NO_EVAL);
+
+void adjust_cross_exchange_wait_gain(const Input& input,
+                                     Eval& stored_gain,
+                                     Index s_vehicle,
+                                     const std::vector<Index>& s_route,
+                                     Index s_rank,
+                                     bool reverse_s_edge,
+                                     bool reverse_t_edge,
+                                     Index t_vehicle,
+                                     const std::vector<Index>& t_route,
+                                     Index t_rank,
+                                     const TWRoute* tw_s_route,
+                                     const TWRoute* tw_t_route,
+                                     Eval best_known = NO_EVAL);
+
+void adjust_mixed_exchange_wait_gain(const Input& input,
+                                     Eval& stored_gain,
+                                     Index s_vehicle,
+                                     const std::vector<Index>& s_route,
+                                     Index s_rank,
+                                     bool reverse_t_edge,
+                                     Index t_vehicle,
+                                     const std::vector<Index>& t_route,
+                                     Index t_rank,
+                                     const TWRoute* tw_s_route,
+                                     const TWRoute* tw_t_route,
+                                     Eval best_known = NO_EVAL);
+
+void adjust_route_exchange_wait_gain(const Input& input,
+                                     Eval& stored_gain,
+                                     Index s_vehicle,
+                                     const std::vector<Index>& s_route,
+                                     Index t_vehicle,
+                                     const std::vector<Index>& t_route,
+                                     const TWRoute* tw_s_route,
+                                     const TWRoute* tw_t_route,
+                                     Eval best_known = NO_EVAL);
+
+void adjust_one_route_moved_jobs_wait_gain(
+  const Input& input,
+  Eval& stored_gain,
+  Index v,
+  const std::vector<Index>& route_old,
+  Index first_rank,
+  const std::vector<Index>& moved_jobs,
+  const TWRoute* tw_route,
   Eval best_known = NO_EVAL);
 
 void adjust_stored_gain_for_wait_approx_one_route(const Input& input,

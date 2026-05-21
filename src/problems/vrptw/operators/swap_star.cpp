@@ -108,6 +108,14 @@ void SwapStar::compute_gain() {
                                                          &_tw_s_route,
                                                          &_tw_t_route,
                                                          best_known_threshold);
+
+    if (!utils::routes_within_max_duration(_input,
+                                           s_vehicle,
+                                           ns,
+                                           t_vehicle,
+                                           nt)) {
+      stored_gain = NO_GAIN;
+    }
   }
   gain_computed = true;
 }

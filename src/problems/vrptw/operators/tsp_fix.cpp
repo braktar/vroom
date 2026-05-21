@@ -8,6 +8,7 @@ All rights reserved (see LICENSE).
 */
 
 #include "problems/vrptw/operators/tsp_fix.h"
+#include "utils/helpers.h"
 
 namespace vroom::vrptw {
 
@@ -23,13 +24,17 @@ TSPFix::TSPFix(const Input& input,
 }
 
 bool TSPFix::is_valid() {
-  return cvrp::TSPFix::is_valid() &&
-         _tw_s_route.is_valid_addition_for_tw(_input,
-                                              _s_delivery,
-                                              tsp_route.begin(),
-                                              tsp_route.end(),
-                                              0,
-                                              s_route.size());
+  if (!cvrp::TSPFix::is_valid() ||
+      !_tw_s_route.is_valid_addition_for_tw(_input,
+                                            _s_delivery,
+                                            tsp_route.begin(),
+                                            tsp_route.end(),
+                                            0,
+                                            s_route.size())) {
+    return false;
+  }
+
+  return utils::route_jobs_within_max_duration(_input, s_vehicle, tsp_route);
 }
 
 void TSPFix::apply() {

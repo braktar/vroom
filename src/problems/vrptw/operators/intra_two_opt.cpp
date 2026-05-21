@@ -48,21 +48,26 @@ void IntraTwoOpt::compute_gain() {
 }
 
 bool IntraTwoOpt::is_valid() {
-  bool valid = cvrp::IntraTwoOpt::is_valid();
-
-  if (valid) {
-    auto rev_t = s_route.rbegin() + (s_route.size() - t_rank - 1);
-    auto rev_s_next = s_route.rbegin() + (s_route.size() - s_rank);
-
-    valid = _tw_s_route.is_valid_addition_for_tw(_input,
-                                                 delivery,
-                                                 rev_t,
-                                                 rev_s_next,
-                                                 s_rank,
-                                                 t_rank + 1);
+  if (!cvrp::IntraTwoOpt::is_valid()) {
+    return false;
   }
 
-  return valid;
+  auto rev_t = s_route.rbegin() + (s_route.size() - t_rank - 1);
+  auto rev_s_next = s_route.rbegin() + (s_route.size() - s_rank);
+
+  if (!_tw_s_route.is_valid_addition_for_tw(_input,
+                                            delivery,
+                                            rev_t,
+                                            rev_s_next,
+                                            s_rank,
+                                            t_rank + 1)) {
+    return false;
+  }
+
+  auto nr = s_route;
+  std::reverse(nr.begin() + static_cast<std::ptrdiff_t>(s_rank),
+               nr.begin() + static_cast<std::ptrdiff_t>(t_rank) + 1);
+  return utils::route_jobs_within_max_duration(_input, s_vehicle, nr);
 }
 
 void IntraTwoOpt::apply() {

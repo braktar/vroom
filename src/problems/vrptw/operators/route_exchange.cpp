@@ -42,17 +42,15 @@ void RouteExchange::compute_gain() {
 
   cvrp::RouteExchange::compute_gain();
 
-  utils::adjust_stored_gain_for_wait_approx_two_routes(_input,
-                                                       stored_gain,
-                                                       s_vehicle,
-                                                       s_route,
-                                                       t_route,
-                                                       t_vehicle,
-                                                       t_route,
-                                                       s_route,
-                                                       &_tw_s_route,
-                                                       &_tw_t_route,
-                                                       best_known_threshold);
+  utils::adjust_route_exchange_wait_gain(_input,
+                                         stored_gain,
+                                         s_vehicle,
+                                         s_route,
+                                         t_vehicle,
+                                         t_route,
+                                         &_tw_s_route,
+                                         &_tw_t_route,
+                                         best_known_threshold);
 }
 
 bool RouteExchange::is_valid() {
@@ -71,7 +69,15 @@ bool RouteExchange::is_valid() {
                                                   t_route.end(),
                                                   0,
                                                   s_route.size());
-  return valid;
+  if (!valid) {
+    return false;
+  }
+
+  return utils::routes_within_max_duration(_input,
+                                           s_vehicle,
+                                           t_route,
+                                           t_vehicle,
+                                           s_route);
 }
 
 void RouteExchange::apply() {

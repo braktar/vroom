@@ -48,28 +48,19 @@ void CrossExchange::compute_gain() {
 
   cvrp::CrossExchange::compute_gain();
 
-  auto ns = s_route;
-  auto nt = t_route;
-  std::swap(ns[s_rank], nt[t_rank]);
-  std::swap(ns[s_rank + 1], nt[t_rank + 1]);
-  if (reverse_s_edge) {
-    std::swap(nt[t_rank], nt[t_rank + 1]);
-  }
-  if (reverse_t_edge) {
-    std::swap(ns[s_rank], ns[s_rank + 1]);
-  }
-
-  utils::adjust_stored_gain_for_wait_approx_two_routes(_input,
-                                                       stored_gain,
-                                                       s_vehicle,
-                                                       s_route,
-                                                       ns,
-                                                       t_vehicle,
-                                                       t_route,
-                                                       nt,
-                                                       &_tw_s_route,
-                                                       &_tw_t_route,
-                                                       best_known_threshold);
+  utils::adjust_cross_exchange_wait_gain(_input,
+                                         stored_gain,
+                                         s_vehicle,
+                                         s_route,
+                                         s_rank,
+                                         reverse_s_edge,
+                                         reverse_t_edge,
+                                         t_vehicle,
+                                         t_route,
+                                         t_rank,
+                                         &_tw_s_route,
+                                         &_tw_t_route,
+                                         best_known_threshold);
 }
 
 bool CrossExchange::is_valid() {
@@ -129,7 +120,23 @@ bool CrossExchange::is_valid() {
     valid = t_is_normal_valid || t_is_reverse_valid;
   }
 
-  return valid;
+  if (!valid) {
+    return false;
+  }
+
+  return utils::cross_exchange_within_max_duration(_input,
+                                                   s_vehicle,
+                                                   s_route,
+                                                   s_rank,
+                                                   t_vehicle,
+                                                   t_route,
+                                                   t_rank,
+                                                   s_is_normal_valid,
+                                                   s_is_reverse_valid,
+                                                   t_is_normal_valid,
+                                                   t_is_reverse_valid,
+                                                   check_s_reverse,
+                                                   check_t_reverse);
 }
 
 void CrossExchange::apply() {

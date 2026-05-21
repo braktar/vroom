@@ -71,6 +71,9 @@ struct Eval {
     return lhs;
   }
 
+  // Lexicographic order; local search move gains are compared on cost only
+  // (operator<=). wait_duration is included here for completeness when summing
+  // full route Eval values.
   friend bool operator<(const Eval& lhs, const Eval& rhs) {
     return std::tie(lhs.cost,
                     lhs.duration,

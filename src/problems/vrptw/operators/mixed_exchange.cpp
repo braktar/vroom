@@ -46,28 +46,18 @@ void MixedExchange::compute_gain() {
 
   cvrp::MixedExchange::compute_gain();
 
-  auto ns = s_route;
-  auto nt = t_route;
-  std::swap(ns[s_rank], nt[t_rank]);
-  ns.insert(ns.begin() + static_cast<std::ptrdiff_t>(s_rank) + 1,
-            nt.begin() + static_cast<std::ptrdiff_t>(t_rank) + 1,
-            nt.begin() + static_cast<std::ptrdiff_t>(t_rank) + 2);
-  nt.erase(nt.begin() + static_cast<std::ptrdiff_t>(t_rank) + 1);
-  if (reverse_t_edge) {
-    std::swap(ns[s_rank], ns[s_rank + 1]);
-  }
-
-  utils::adjust_stored_gain_for_wait_approx_two_routes(_input,
-                                                       stored_gain,
-                                                       s_vehicle,
-                                                       s_route,
-                                                       ns,
-                                                       t_vehicle,
-                                                       t_route,
-                                                       nt,
-                                                       &_tw_s_route,
-                                                       &_tw_t_route,
-                                                       best_known_threshold);
+  utils::adjust_mixed_exchange_wait_gain(_input,
+                                         stored_gain,
+                                         s_vehicle,
+                                         s_route,
+                                         s_rank,
+                                         reverse_t_edge,
+                                         t_vehicle,
+                                         t_route,
+                                         t_rank,
+                                         &_tw_s_route,
+                                         &_tw_t_route,
+                                         best_known_threshold);
 }
 
 bool MixedExchange::is_valid() {
@@ -107,7 +97,20 @@ bool MixedExchange::is_valid() {
     valid = s_is_normal_valid || s_is_reverse_valid;
   }
 
-  return valid;
+  if (!valid) {
+    return false;
+  }
+
+  return utils::mixed_exchange_within_max_duration(_input,
+                                                   s_vehicle,
+                                                   s_route,
+                                                   s_rank,
+                                                   t_vehicle,
+                                                   t_route,
+                                                   t_rank,
+                                                   s_is_normal_valid,
+                                                   s_is_reverse_valid,
+                                                   check_t_reverse);
 }
 
 void MixedExchange::apply() {

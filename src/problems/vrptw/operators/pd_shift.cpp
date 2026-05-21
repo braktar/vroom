@@ -94,17 +94,26 @@ void PDShift::compute_gain() {
                                                t_route,
                                                &_tw_t_route));
 
-    utils::adjust_stored_gain_for_wait_approx_two_routes(_input,
-                                                         stored_gain,
-                                                         s_vehicle,
-                                                         s_route,
-                                                         s_new,
-                                                         t_vehicle,
-                                                         t_route,
-                                                         t_new,
-                                                         &_tw_s_route,
-                                                         &_tw_t_route,
-                                                         best_known_threshold);
+    if (!utils::routes_within_max_duration(_input,
+                                           s_vehicle,
+                                           s_new,
+                                           t_vehicle,
+                                           t_new)) {
+      _valid = false;
+      stored_gain = NO_GAIN;
+    } else {
+      utils::adjust_stored_gain_for_wait_approx_two_routes(_input,
+                                                           stored_gain,
+                                                           s_vehicle,
+                                                           s_route,
+                                                           s_new,
+                                                           t_vehicle,
+                                                           t_route,
+                                                           t_new,
+                                                           &_tw_s_route,
+                                                           &_tw_t_route,
+                                                           best_known_threshold);
+    }
   }
   gain_computed = true;
 }

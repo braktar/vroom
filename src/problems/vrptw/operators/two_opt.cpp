@@ -44,48 +44,40 @@ void TwoOpt::compute_gain() {
 
   cvrp::TwoOpt::compute_gain();
 
-  auto ns = s_route;
-  auto nt = t_route;
-  const auto nb_source = ns.size() - 1 - s_rank;
-  nt.insert(nt.begin() + static_cast<std::ptrdiff_t>(t_rank) + 1,
-            ns.begin() + static_cast<std::ptrdiff_t>(s_rank) + 1,
-            ns.end());
-  ns.erase(ns.begin() + static_cast<std::ptrdiff_t>(s_rank) + 1, ns.end());
-  ns.insert(ns.end(),
-            nt.begin() + static_cast<std::ptrdiff_t>(t_rank) + 1 +
-              static_cast<std::ptrdiff_t>(nb_source),
-            nt.end());
-  nt.erase(nt.begin() + static_cast<std::ptrdiff_t>(t_rank) + 1 +
-             static_cast<std::ptrdiff_t>(nb_source),
-           nt.end());
-
-  utils::adjust_stored_gain_for_wait_approx_two_routes(_input,
-                                                       stored_gain,
-                                                       s_vehicle,
-                                                       s_route,
-                                                       ns,
-                                                       t_vehicle,
-                                                       t_route,
-                                                       nt,
-                                                       &_tw_s_route,
-                                                       &_tw_t_route,
-                                                       best_known_threshold);
+  utils::adjust_two_opt_wait_gain(_input,
+                                  stored_gain,
+                                  s_vehicle,
+                                  s_route,
+                                  s_rank,
+                                  t_vehicle,
+                                  t_route,
+                                  t_rank,
+                                  &_tw_s_route,
+                                  &_tw_t_route,
+                                  best_known_threshold);
 }
 
 bool TwoOpt::is_valid() {
-  return cvrp::TwoOpt::is_valid() &&
-         _tw_t_route.is_valid_addition_for_tw(_input,
-                                              _s_delivery,
-                                              s_route.begin() + s_rank + 1,
-                                              s_route.end(),
-                                              t_rank + 1,
-                                              t_route.size()) &&
-         _tw_s_route.is_valid_addition_for_tw(_input,
-                                              _t_delivery,
-                                              t_route.begin() + t_rank + 1,
-                                              t_route.end(),
-                                              s_rank + 1,
-                                              s_route.size());
+  if (!cvrp::TwoOpt::is_valid() ||
+      !_tw_t_route.is_valid_addition_for_tw(_input,
+                                            _s_delivery,
+                                            s_route.begin() + s_rank + 1,
+                                            s_route.end(),
+                                            t_rank + 1,
+                                            t_route.size()) ||
+      !_tw_s_route.is_valid_addition_for_tw(_input,
+                                            _t_delivery,
+                                            t_route.begin() + t_rank + 1,
+                                            t_route.end(),
+                                            s_rank + 1,
+                                            s_route.size())) {
+    return false;
+  }
+
+  std::vector<Index> ns;
+  std::vector<Index> nt;
+  utils::build_two_opt_post_routes(s_route, s_rank, t_route, t_rank, ns, nt);
+  return utils::routes_within_max_duration(_input, s_vehicle, ns, t_vehicle, nt);
 }
 
 void TwoOpt::apply() {
