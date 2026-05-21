@@ -698,7 +698,7 @@ std::optional<Duration> approx_billable_wait_jobs_only(
 
 // Billable wait duration for `jobs` in order on `vehicle_rank`, aligned with
 // route evaluation: scratch TWRoute built with sequential adds, then
-// refresh_asap_total_wait_for_eval (backward min depot leave + forward waits).
+// refresh_billable_total_wait_for_eval (backward min depot leave + forward waits).
 // Skips vehicles with breaks. nullopt if TW infeasible for that sequence.
 std::optional<Duration> billable_wait_for_job_sequence_aligned_with_route_eval(
   const Input& input,
@@ -706,7 +706,7 @@ std::optional<Duration> billable_wait_for_job_sequence_aligned_with_route_eval(
   const std::vector<Index>& jobs);
 
 // Wait cost for `jobs` on `vehicle_rank`. Uses `tw_if_matches` when its route
-// equals `jobs` (reuses asap_total_wait) instead of rebuilding a scratch TWRoute.
+// equals `jobs` (reuses billable_total_wait) instead of rebuilding a scratch TWRoute.
 std::optional<Cost> wait_cost_for_job_sequence(const Input& input,
                                                Index vehicle_rank,
                                                const std::vector<Index>& jobs,

@@ -247,8 +247,8 @@ void TWRoute::fwd_update_earliest_from(const Input& input, Index rank) {
   }
 }
 
-void TWRoute::recompute_asap_total_wait(const Input& input) {
-  asap_total_wait = 0;
+void TWRoute::recompute_billable_total_wait(const Input& input) {
+  billable_total_wait = 0;
   if (route.empty()) {
     return;
   }
@@ -259,7 +259,7 @@ void TWRoute::recompute_asap_total_wait(const Input& input) {
   assert(route_origin >= v.earliest_route_start());
   // Count intentional delay at depot (not shown as step waiting_time) so
   // per_wait_hour matches total slack vs. earliest depot release.
-  asap_total_wait += route_origin - v.earliest_route_start();
+  billable_total_wait += route_origin - v.earliest_route_start();
   Duration current_earliest = route_origin;
 
   for (Index i = 0; i < route.size(); ++i) {
@@ -294,7 +294,7 @@ void TWRoute::recompute_asap_total_wait(const Input& input) {
         if (margin < remaining_travel_time) {
           remaining_travel_time -= margin;
         } else {
-          asap_total_wait += margin - remaining_travel_time;
+          billable_total_wait += margin - remaining_travel_time;
           remaining_travel_time = 0;
         }
 
@@ -312,7 +312,7 @@ void TWRoute::recompute_asap_total_wait(const Input& input) {
     assert(j_tw != next_j.tws.end());
 
     const Duration arrival_before_tw = current_earliest;
-    asap_total_wait +=
+    billable_total_wait +=
       std::max(static_cast<Duration>(0), j_tw->start - arrival_before_tw);
     current_earliest = std::max(current_earliest, j_tw->start);
   }
@@ -343,7 +343,7 @@ void TWRoute::recompute_asap_total_wait(const Input& input) {
       if (margin < remaining_travel_time) {
         remaining_travel_time -= margin;
       } else {
-        asap_total_wait += margin - remaining_travel_time;
+        billable_total_wait += margin - remaining_travel_time;
         remaining_travel_time = 0;
       }
 
@@ -1551,9 +1551,9 @@ void TWRoute::replace(const Input& input,
   }
 
   if (route.empty()) {
-    asap_total_wait = 0;
+    billable_total_wait = 0;
   } else {
-    recompute_asap_total_wait(input);
+    recompute_billable_total_wait(input);
   }
 }
 

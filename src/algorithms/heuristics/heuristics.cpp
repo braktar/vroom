@@ -891,7 +891,7 @@ void set_route(const Input& input,
     auto route_eval =
       utils::route_eval_for_vehicle(input, route.v_rank, route.route);
     if constexpr (std::is_same_v<Route, TWRoute>) {
-      route_eval.wait_duration = route.asap_total_wait;
+      route_eval.wait_duration = route.billable_total_wait;
     }
     if (!vehicle.ok_for_total_duration(route_eval)) {
       throw InputException(

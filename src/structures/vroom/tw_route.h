@@ -73,7 +73,7 @@ private:
   void fwd_update_breaks_load_margin_from(const Input& input, Index rank);
   void bwd_update_breaks_load_margin_from(const Input& input, Index rank);
 
-  void recompute_asap_total_wait(const Input& input);
+  void recompute_billable_total_wait(const Input& input);
 
   // Define global policy wrt job/break respective insertion rule.
   OrderChoice order_choice(const Input& input,
@@ -92,7 +92,7 @@ public:
   // Total wait for per_wait_hour: forward simulation from the same depot
   // leave time as format_route (backward ETA, capped by vehicle latest
   // departure when set).
-  Duration asap_total_wait{0};
+  Duration billable_total_wait{0};
 
   // Margin for job at rank i in route: earliest[i] and latest[i]
   // store earliest and latest date. Those are potentially derived
@@ -212,10 +212,10 @@ public:
             rank + count);
   };
 
-  // Recompute asap_total_wait (per_wait_hour) from the current route using
+  // Recompute billable_total_wait (per_wait_hour) from the current route using
   // the same rules as route evaluation. Used after building a scratch route.
-  void refresh_asap_total_wait_for_eval(const Input& input) {
-    recompute_asap_total_wait(input);
+  void refresh_billable_total_wait_for_eval(const Input& input) {
+    recompute_billable_total_wait(input);
   }
 
   // Add the range [first_job; last_job) in the existing route at rank

@@ -1897,7 +1897,7 @@ void LocalSearch<Route,
           break;
         }
       }
-      // route_eval.wait_duration tracks asap_total_wait; incremental gains do
+      // route_eval.wait_duration tracks billable_total_wait; incremental gains do
       // not include waiting cost. Compare fields operators actually delta-update.
       assert(delta.duration == best_gain.duration);
       assert(delta.distance == best_gain.distance);

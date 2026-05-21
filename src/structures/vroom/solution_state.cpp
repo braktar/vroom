@@ -705,8 +705,8 @@ void SolutionState::update_route_eval(const TWRoute& tw_r) {
   auto eval = route_eval_for_vehicle(_input, v, tw_r.route);
   if (!tw_r.empty()) {
     const auto& vehicle = _input.vehicles[v];
-    eval.cost += vehicle.wait_cost(tw_r.asap_total_wait);
-    eval.wait_duration = tw_r.asap_total_wait;
+    eval.cost += vehicle.wait_cost(tw_r.billable_total_wait);
+    eval.wait_duration = tw_r.billable_total_wait;
   }
   route_evals[v] = eval;
 }

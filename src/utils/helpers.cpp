@@ -202,8 +202,8 @@ std::optional<Duration> billable_wait_for_job_sequence_aligned_with_route_eval(
     }
     tw.add(input, jr, static_cast<Index>(tw.route.size()));
   }
-  tw.refresh_asap_total_wait_for_eval(input);
-  return tw.asap_total_wait;
+  tw.refresh_billable_total_wait_for_eval(input);
+  return tw.billable_total_wait;
 }
 
 std::optional<Duration> approx_billable_wait_jobs_only(
@@ -330,7 +330,7 @@ std::optional<Cost> wait_cost_for_job_sequence(const Input& input,
     return Cost{0};
   }
   if (tw_if_matches != nullptr && tw_if_matches->route == jobs) {
-    return veh.wait_cost(tw_if_matches->asap_total_wait);
+    return veh.wait_cost(tw_if_matches->billable_total_wait);
   }
   const auto w =
     billable_wait_for_job_sequence_aligned_with_route_eval(input,
@@ -1225,7 +1225,7 @@ Route format_route(const Input& input,
                                     eval_sum.duration,
                                     eval_sum.distance,
                                     setup + service,
-                                    tw_r.asap_total_wait)));
+                                    tw_r.billable_total_wait)));
 
   assert(v.fixed_cost() % (DURATION_FACTOR * COST_FACTOR) == 0);
   const UserCost user_fixed_cost = utils::scale_to_user_cost(v.fixed_cost());
@@ -1237,7 +1237,7 @@ Route format_route(const Input& input,
   const UserCost user_task_cost =
     scale_to_user_cost(v.task_cost(setup + service));
   const UserCost user_wait_cost =
-    scale_to_user_cost(v.wait_cost(tw_r.asap_total_wait));
+    scale_to_user_cost(v.wait_cost(tw_r.billable_total_wait));
 
   return Route(v.id,
                std::move(steps),
