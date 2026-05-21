@@ -37,7 +37,7 @@ protected:
   Eval s_gain;
   Eval t_gain;
   Eval stored_gain;
-  // Upper bound on wait component of gain (old wait costs); unset if uncertain.
+  // Upper bound on wait component of gain (wait cost before move); unset if uncertain.
   std::optional<Cost> wait_gain_upper_bound;
   Eval best_known_threshold{NO_EVAL};
 

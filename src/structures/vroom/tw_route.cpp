@@ -254,11 +254,11 @@ void TWRoute::recompute_asap_total_wait(const Input& input) {
   }
 
   const auto& v = input.vehicles[v_rank];
-  // Same depot leave time as format_route (backward min-wait, capped by l_0).
+  // Same depot leave time as format_route (backward min-wait, capped by the latest departure time from depot).
   const Duration route_origin = utils::min_wait_route_departure(input, *this);
   assert(route_origin >= v.earliest_route_start());
   // Count intentional delay at depot (not shown as step waiting_time) so
-  // per_wait_hour matches total slack vs. earliest depot release e_0.
+  // per_wait_hour matches total slack vs. earliest depot release.
   asap_total_wait += route_origin - v.earliest_route_start();
   Duration current_earliest = route_origin;
 

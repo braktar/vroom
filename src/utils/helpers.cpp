@@ -712,7 +712,7 @@ namespace {
 struct BackwardEtaAnchor {
   Duration depot_departure;
   Duration backward_wt;
-  // Depot leave time before optional latest-departure (l_0) cap; used for
+  // Depot leave time before optional latest-departure cap; used for
   // debug checks when the cap shifts waiting from depot to in-route.
   Duration ideal_departure;
   std::optional<Location> first_location;
@@ -854,7 +854,7 @@ BackwardEtaAnchor compute_backward_eta_anchor(const Input& input,
 
   const Duration ideal_departure = step_start;
 
-  // Latest departure from depot (optional l_0): cannot leave after this time.
+  // Latest departure from depot (optional): cannot leave after this time.
   if (v.has_latest_departure()) {
     assert(v.departure.has_value());
     step_start = std::min(step_start, v.departure.value());
@@ -903,7 +903,7 @@ Route format_route(const Input& input,
 
   steps.emplace_back(STEP_TYPE::START, first_location.value(), current_load);
   assert(v.tw.contains(step_start));
-  // Start step: arrival = e_0 (earliest depot release); waiting_time = idle until
+  // Start step: arrival = earliest depot release; waiting_time = idle until
   // actual leave (aligned with per_wait_hour / route.waiting_time).
   const Duration e0 = v.earliest_route_start();
   assert(step_start >= e0);

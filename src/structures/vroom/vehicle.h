@@ -82,7 +82,7 @@ struct Vehicle {
   const std::string type_str;
   std::unordered_map<Id, Index> break_id_to_rank;
   // Optional latest departure time from depot (internal duration scale):
-  // vehicle may not leave start after this instant (VRPTW depot window l_0).
+  // vehicle may not leave start depot after this instant.
   const std::optional<Duration> departure;
 
   Vehicle(
@@ -132,7 +132,7 @@ struct Vehicle {
     return Eval(task_cost(task_duration), 0, 0, task_duration, 0);
   }
 
-  // Earliest time the route timeline may begin at depot (depot release e_0).
+  // Earliest time the route timeline may begin at depot (depot release).
   Duration earliest_route_start() const {
     return tw.start;
   }

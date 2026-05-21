@@ -815,7 +815,7 @@ Route format_route(const Input& input,
                    std::unordered_set<Index>& unassigned_ranks);
 
 // Depot leave time after backward ETA (latest leave minimizing downstream
-// waits), capped by optional vehicle latest departure (`departure` / l_0).
+// waits), capped by optional vehicle latest departure from depot (`departure`).
 Duration min_wait_route_departure(const Input& input, const TWRoute& tw_r);
 
 Solution format_solution(const Input& input, const TWSolution& tw_routes);
