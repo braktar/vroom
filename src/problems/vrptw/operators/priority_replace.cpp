@@ -97,35 +97,48 @@ bool PriorityReplace::is_valid() {
     return false;
   }
 
-  if (_input.vehicles[s_vehicle].max_duration == DEFAULT_MAX_DURATION) {
-    return true;
-  }
+  return utils::max_duration_feasible_for_ls(_input,
+                                             stored_gain,
+                                             get_wait_gain_upper_bound(),
+                                             best_known_threshold,
+                                             [&] {
+                                               auto check_start = [&]() {
+                                                 if (!replace_start_valid) {
+                                                   return false;
+                                                 }
+                                                 std::vector<Index> new_route;
+                                                 new_route.push_back(_u);
+                                                 new_route.insert(
+                                                   new_route.end(),
+                                                   s_route.begin() +
+                                                     static_cast<std::ptrdiff_t>(
+                                                       s_rank) +
+                                                     1,
+                                                   s_route.end());
+                                                 return utils::
+                                                   route_jobs_within_max_duration_for_ls(
+                                                     _input, s_vehicle, new_route);
+                                               };
 
-  auto check_start = [&]() {
-    if (!replace_start_valid) {
-      return false;
-    }
-    std::vector<Index> new_route;
-    new_route.push_back(_u);
-    new_route.insert(new_route.end(),
-                     s_route.begin() + static_cast<std::ptrdiff_t>(s_rank) + 1,
-                     s_route.end());
-    return utils::route_jobs_within_max_duration(_input, s_vehicle, new_route);
-  };
+                                               auto check_end = [&]() {
+                                                 if (!replace_end_valid) {
+                                                   return false;
+                                                 }
+                                                 std::vector<Index> new_route;
+                                                 new_route.insert(
+                                                   new_route.end(),
+                                                   s_route.begin(),
+                                                   s_route.begin() +
+                                                     static_cast<std::ptrdiff_t>(
+                                                       t_rank));
+                                                 new_route.push_back(_u);
+                                                 return utils::
+                                                   route_jobs_within_max_duration_for_ls(
+                                                     _input, s_vehicle, new_route);
+                                               };
 
-  auto check_end = [&]() {
-    if (!replace_end_valid) {
-      return false;
-    }
-    std::vector<Index> new_route;
-    new_route.insert(new_route.end(),
-                     s_route.begin(),
-                     s_route.begin() + static_cast<std::ptrdiff_t>(t_rank));
-    new_route.push_back(_u);
-    return utils::route_jobs_within_max_duration(_input, s_vehicle, new_route);
-  };
-
-  return check_start() || check_end();
+                                               return check_start() || check_end();
+                                             });
 }
 
 void PriorityReplace::apply() {

@@ -56,8 +56,9 @@ void RouteSplit::compute_gain() {
       s_route.begin() + static_cast<std::ptrdiff_t>(choice.split_rank),
       s_route.end());
 
-    if (!utils::route_jobs_within_max_duration(_input, v_begin, prefix) ||
-        !utils::route_jobs_within_max_duration(_input, v_end, suffix)) {
+    if (_input.has_bounded_max_duration() &&
+        (!utils::route_jobs_within_max_duration_for_ls(_input, v_begin, prefix) ||
+         !utils::route_jobs_within_max_duration_for_ls(_input, v_end, suffix))) {
       stored_gain = NO_GAIN;
     } else {
       const auto& v_s = _input.vehicles[s_vehicle];

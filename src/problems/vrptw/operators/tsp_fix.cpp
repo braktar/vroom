@@ -34,7 +34,14 @@ bool TSPFix::is_valid() {
     return false;
   }
 
-  return utils::route_jobs_within_max_duration(_input, s_vehicle, tsp_route);
+  return utils::max_duration_feasible_for_ls(_input,
+                                             stored_gain,
+                                             get_wait_gain_upper_bound(),
+                                             best_known_threshold,
+                                             [&] {
+                                               return utils::route_jobs_within_max_duration_for_ls(
+                                                 _input, s_vehicle, tsp_route);
+                                             });
 }
 
 void TSPFix::apply() {

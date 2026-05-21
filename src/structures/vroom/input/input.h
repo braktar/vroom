@@ -170,6 +170,8 @@ public:
 
   bool has_nonzero_per_wait_hour() const;
 
+  bool has_bounded_max_duration() const;
+
   bool is_used_several_times(const Location& location) const;
 
   bool has_skills() const;

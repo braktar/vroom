@@ -94,11 +94,12 @@ void PDShift::compute_gain() {
                                                t_route,
                                                &_tw_t_route));
 
-    if (!utils::routes_within_max_duration(_input,
-                                           s_vehicle,
-                                           s_new,
-                                           t_vehicle,
-                                           t_new)) {
+    if (_input.has_bounded_max_duration() &&
+        !utils::routes_within_max_duration_for_ls(_input,
+                                                  s_vehicle,
+                                                  s_new,
+                                                  t_vehicle,
+                                                  t_new)) {
       _valid = false;
       stored_gain = NO_GAIN;
     } else {

@@ -76,15 +76,23 @@ bool ReverseTwoOpt::is_valid() {
     return false;
   }
 
-  std::vector<Index> ns;
-  std::vector<Index> nt;
-  utils::build_reverse_two_opt_post_routes(s_route,
-                                           s_rank,
-                                           t_route,
-                                           t_rank,
-                                           ns,
-                                           nt);
-  return utils::routes_within_max_duration(_input, s_vehicle, ns, t_vehicle, nt);
+  return utils::max_duration_feasible_for_ls(_input,
+                                             stored_gain,
+                                             get_wait_gain_upper_bound(),
+                                             best_known_threshold,
+                                             [&] {
+                                               std::vector<Index> ns;
+                                               std::vector<Index> nt;
+                                               utils::build_reverse_two_opt_post_routes(
+                                                 s_route,
+                                                 s_rank,
+                                                 t_route,
+                                                 t_rank,
+                                                 ns,
+                                                 nt);
+                                               return utils::routes_within_max_duration_for_ls(
+                                                 _input, s_vehicle, ns, t_vehicle, nt);
+                                             });
 }
 
 void ReverseTwoOpt::apply() {

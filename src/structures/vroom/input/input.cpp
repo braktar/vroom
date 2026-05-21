@@ -443,6 +443,12 @@ bool Input::has_nonzero_per_wait_hour() const {
   });
 }
 
+bool Input::has_bounded_max_duration() const {
+  return std::ranges::any_of(vehicles, [](const Vehicle& v) {
+    return v.max_duration != DEFAULT_MAX_DURATION;
+  });
+}
+
 bool Input::has_skills() const {
   return _has_skills;
 }

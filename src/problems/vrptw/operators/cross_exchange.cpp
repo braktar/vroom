@@ -124,19 +124,26 @@ bool CrossExchange::is_valid() {
     return false;
   }
 
-  return utils::cross_exchange_within_max_duration(_input,
-                                                   s_vehicle,
-                                                   s_route,
-                                                   s_rank,
-                                                   t_vehicle,
-                                                   t_route,
-                                                   t_rank,
-                                                   s_is_normal_valid,
-                                                   s_is_reverse_valid,
-                                                   t_is_normal_valid,
-                                                   t_is_reverse_valid,
-                                                   check_s_reverse,
-                                                   check_t_reverse);
+  return utils::max_duration_feasible_for_ls(_input,
+                                             stored_gain,
+                                             get_wait_gain_upper_bound(),
+                                             best_known_threshold,
+                                             [&] {
+                                               return utils::cross_exchange_within_max_duration(
+                                                 _input,
+                                                 s_vehicle,
+                                                 s_route,
+                                                 s_rank,
+                                                 t_vehicle,
+                                                 t_route,
+                                                 t_rank,
+                                                 s_is_normal_valid,
+                                                 s_is_reverse_valid,
+                                                 t_is_normal_valid,
+                                                 t_is_reverse_valid,
+                                                 check_s_reverse,
+                                                 check_t_reverse);
+                                             });
 }
 
 void CrossExchange::apply() {

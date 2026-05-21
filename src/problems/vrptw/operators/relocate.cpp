@@ -64,19 +64,27 @@ bool Relocate::is_valid() {
     return false;
   }
 
-  std::vector<Index> source_after;
-  std::vector<Index> target_after;
-  utils::build_relocate_post_routes(s_route,
-                                    s_rank,
-                                    t_route,
-                                    t_rank,
-                                    source_after,
-                                    target_after);
-  return utils::routes_within_max_duration(_input,
-                                           s_vehicle,
-                                           source_after,
-                                           t_vehicle,
-                                           target_after);
+  return utils::max_duration_feasible_for_ls(_input,
+                                             stored_gain,
+                                             get_wait_gain_upper_bound(),
+                                             best_known_threshold,
+                                             [&] {
+                                               std::vector<Index> source_after;
+                                               std::vector<Index> target_after;
+                                               utils::build_relocate_post_routes(
+                                                 s_route,
+                                                 s_rank,
+                                                 t_route,
+                                                 t_rank,
+                                                 source_after,
+                                                 target_after);
+                                               return utils::routes_within_max_duration_for_ls(
+                                                 _input,
+                                                 s_vehicle,
+                                                 source_after,
+                                                 t_vehicle,
+                                                 target_after);
+                                             });
 }
 
 void Relocate::apply() {

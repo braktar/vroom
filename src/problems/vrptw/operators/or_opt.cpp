@@ -89,15 +89,22 @@ bool OrOpt::is_valid() {
     return false;
   }
 
-  return utils::or_opt_within_max_duration(_input,
-                                           s_vehicle,
-                                           s_route,
-                                           s_rank,
-                                           t_vehicle,
-                                           t_route,
-                                           t_rank,
-                                           is_normal_valid,
-                                           is_reverse_valid);
+  return utils::max_duration_feasible_for_ls(_input,
+                                             stored_gain,
+                                             get_wait_gain_upper_bound(),
+                                             best_known_threshold,
+                                             [&] {
+                                               return utils::or_opt_within_max_duration(
+                                                 _input,
+                                                 s_vehicle,
+                                                 s_route,
+                                                 s_rank,
+                                                 t_vehicle,
+                                                 t_route,
+                                                 t_rank,
+                                                 is_normal_valid,
+                                                 is_reverse_valid);
+                                             });
 }
 
 void OrOpt::apply() {

@@ -73,11 +73,18 @@ bool RouteExchange::is_valid() {
     return false;
   }
 
-  return utils::routes_within_max_duration(_input,
-                                           s_vehicle,
-                                           t_route,
-                                           t_vehicle,
-                                           s_route);
+  return utils::max_duration_feasible_for_ls(_input,
+                                             stored_gain,
+                                             get_wait_gain_upper_bound(),
+                                             best_known_threshold,
+                                             [&] {
+                                               return utils::routes_within_max_duration_for_ls(
+                                                 _input,
+                                                 s_vehicle,
+                                                 t_route,
+                                                 t_vehicle,
+                                                 s_route);
+                                             });
 }
 
 void RouteExchange::apply() {

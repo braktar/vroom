@@ -64,10 +64,20 @@ bool IntraTwoOpt::is_valid() {
     return false;
   }
 
-  auto nr = s_route;
-  std::reverse(nr.begin() + static_cast<std::ptrdiff_t>(s_rank),
-               nr.begin() + static_cast<std::ptrdiff_t>(t_rank) + 1);
-  return utils::route_jobs_within_max_duration(_input, s_vehicle, nr);
+  return utils::max_duration_feasible_for_ls(_input,
+                                             stored_gain,
+                                             get_wait_gain_upper_bound(),
+                                             best_known_threshold,
+                                             [&] {
+                                               auto nr = s_route;
+                                               std::reverse(
+                                                 nr.begin() +
+                                                   static_cast<std::ptrdiff_t>(s_rank),
+                                                 nr.begin() +
+                                                   static_cast<std::ptrdiff_t>(t_rank) + 1);
+                                               return utils::route_jobs_within_max_duration_for_ls(
+                                                 _input, s_vehicle, nr);
+                                             });
 }
 
 void IntraTwoOpt::apply() {

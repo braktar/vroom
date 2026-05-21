@@ -56,12 +56,20 @@ bool IntraExchange::is_valid() {
     return false;
   }
 
-  std::vector<Index> route_after;
-  utils::build_one_route_after_moved_jobs(s_route,
-                                          _first_rank,
-                                          _moved_jobs,
-                                          route_after);
-  return utils::route_jobs_within_max_duration(_input, s_vehicle, route_after);
+  return utils::max_duration_feasible_for_ls(_input,
+                                             stored_gain,
+                                             get_wait_gain_upper_bound(),
+                                             best_known_threshold,
+                                             [&] {
+                                               std::vector<Index> route_after;
+                                               utils::build_one_route_after_moved_jobs(
+                                                 s_route,
+                                                 _first_rank,
+                                                 _moved_jobs,
+                                                 route_after);
+                                               return utils::route_jobs_within_max_duration_for_ls(
+                                                 _input, s_vehicle, route_after);
+                                             });
 }
 
 void IntraExchange::apply() {

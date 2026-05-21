@@ -259,8 +259,7 @@ bool cross_exchange_within_max_duration(
   bool t_is_reverse_valid,
   bool check_s_reverse,
   bool check_t_reverse) {
-  if (input.vehicles[s_vehicle].max_duration == DEFAULT_MAX_DURATION &&
-      input.vehicles[t_vehicle].max_duration == DEFAULT_MAX_DURATION) {
+  if (!input.has_bounded_max_duration()) {
     return true;
   }
 
@@ -279,7 +278,7 @@ bool cross_exchange_within_max_duration(
                                      reverse_t,
                                      ns,
                                      nt);
-    return routes_within_max_duration(input, s_vehicle, ns, t_vehicle, nt);
+    return routes_within_max_duration_for_ls(input, s_vehicle, ns, t_vehicle, nt);
   };
 
   if (combo_ok(false, false)) {
@@ -306,8 +305,7 @@ bool or_opt_within_max_duration(const Input& input,
                                 Index t_rank,
                                 bool is_normal_valid,
                                 bool is_reverse_valid) {
-  if (input.vehicles[s_vehicle].max_duration == DEFAULT_MAX_DURATION &&
-      input.vehicles[t_vehicle].max_duration == DEFAULT_MAX_DURATION) {
+  if (!input.has_bounded_max_duration()) {
     return true;
   }
 
@@ -315,13 +313,13 @@ bool or_opt_within_max_duration(const Input& input,
   std::vector<Index> nt;
   if (is_normal_valid) {
     build_or_opt_post_routes(s_route, s_rank, t_route, t_rank, false, ns, nt);
-    if (routes_within_max_duration(input, s_vehicle, ns, t_vehicle, nt)) {
+    if (routes_within_max_duration_for_ls(input, s_vehicle, ns, t_vehicle, nt)) {
       return true;
     }
   }
   if (is_reverse_valid) {
     build_or_opt_post_routes(s_route, s_rank, t_route, t_rank, true, ns, nt);
-    return routes_within_max_duration(input, s_vehicle, ns, t_vehicle, nt);
+    return routes_within_max_duration_for_ls(input, s_vehicle, ns, t_vehicle, nt);
   }
   return false;
 }
@@ -337,8 +335,7 @@ bool mixed_exchange_within_max_duration(
   bool s_is_normal_valid,
   bool s_is_reverse_valid,
   bool check_t_reverse) {
-  if (input.vehicles[s_vehicle].max_duration == DEFAULT_MAX_DURATION &&
-      input.vehicles[t_vehicle].max_duration == DEFAULT_MAX_DURATION) {
+  if (!input.has_bounded_max_duration()) {
     return true;
   }
 
@@ -355,7 +352,7 @@ bool mixed_exchange_within_max_duration(
                                      reverse_t,
                                      ns,
                                      nt);
-    return routes_within_max_duration(input, s_vehicle, ns, t_vehicle, nt);
+    return routes_within_max_duration_for_ls(input, s_vehicle, ns, t_vehicle, nt);
   };
 
   return combo_ok(false) || (check_t_reverse && combo_ok(true));
@@ -505,6 +502,44 @@ std::optional<Duration> approx_billable_wait_jobs_only(
   }
 
   return total;
+}
+
+bool route_jobs_within_max_duration_for_ls(const Input& input,
+                                           Index vehicle_rank,
+                                           const std::vector<Index>& jobs) {
+  const auto& vehicle = input.vehicles[vehicle_rank];
+  if (vehicle.max_duration == DEFAULT_MAX_DURATION) {
+    return true;
+  }
+
+  auto eval = route_eval_for_vehicle(input, vehicle_rank, jobs);
+  if (!vehicle.ok_for_total_duration(eval)) {
+    return false;
+  }
+
+  if (jobs.empty() || !vehicle.breaks.empty()) {
+    return true;
+  }
+
+  const auto wait = approx_billable_wait_jobs_only(input,
+                                                   vehicle_rank,
+                                                   jobs,
+                                                   vehicle.earliest_route_start());
+  if (!wait.has_value()) {
+    return false;
+  }
+
+  eval.wait_duration = *wait;
+  return vehicle.ok_for_total_duration(eval);
+}
+
+bool skip_max_duration_check_for_ls(const Eval& stored_gain,
+                                    const std::optional<Cost>& wait_ub,
+                                    const Eval& best_known) {
+  if (best_known == NO_EVAL || !wait_ub.has_value()) {
+    return false;
+  }
+  return stored_gain.cost + *wait_ub <= best_known.cost;
 }
 
 std::optional<Cost> wait_cost_approx_job_sequence(

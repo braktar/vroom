@@ -121,37 +121,52 @@ bool IntraCrossExchange::is_valid() {
     return false;
   }
 
-  if (_input.vehicles[s_vehicle].max_duration == DEFAULT_MAX_DURATION) {
-    return true;
-  }
+  return utils::max_duration_feasible_for_ls(_input,
+                                             stored_gain,
+                                             get_wait_gain_upper_bound(),
+                                             best_known_threshold,
+                                             [&] {
+                                               auto check = [&](bool reverse_s,
+                                                                bool reverse_t) {
+                                                 const bool tw_ok =
+                                                   (reverse_s && reverse_t)
+                                                     ? s_reverse_t_reverse_is_valid
+                                                     : (reverse_s
+                                                          ? s_reverse_t_normal_is_valid
+                                                          : (reverse_t
+                                                               ? s_normal_t_reverse_is_valid
+                                                               : s_normal_t_normal_is_valid));
+                                                 if (!tw_ok) {
+                                                   return false;
+                                                 }
+                                                 auto moved = _moved_jobs;
+                                                 if (reverse_t) {
+                                                   std::swap(moved[0], moved[1]);
+                                                 }
+                                                 if (reverse_s) {
+                                                   std::swap(moved[moved.size() - 2],
+                                                             moved[moved.size() - 1]);
+                                                 }
+                                                 std::vector<Index> route_after;
+                                                 utils::build_one_route_after_moved_jobs(
+                                                   s_route,
+                                                   _first_rank,
+                                                   moved,
+                                                   route_after);
+                                                 return utils::
+                                                   route_jobs_within_max_duration_for_ls(
+                                                     _input, s_vehicle, route_after);
+                                               };
 
-  auto check = [&](bool reverse_s, bool reverse_t) {
-    const bool tw_ok = (reverse_s && reverse_t)
-                         ? s_reverse_t_reverse_is_valid
-                         : (reverse_s ? s_reverse_t_normal_is_valid
-                                    : (reverse_t ? s_normal_t_reverse_is_valid
-                                                 : s_normal_t_normal_is_valid));
-    if (!tw_ok) {
-      return false;
-    }
-    auto moved = _moved_jobs;
-    if (reverse_t) {
-      std::swap(moved[0], moved[1]);
-    }
-    if (reverse_s) {
-      std::swap(moved[moved.size() - 2], moved[moved.size() - 1]);
-    }
-    std::vector<Index> route_after;
-    utils::build_one_route_after_moved_jobs(s_route,
-                                            _first_rank,
-                                            moved,
-                                            route_after);
-    return utils::route_jobs_within_max_duration(_input, s_vehicle, route_after);
-  };
-
-  return check(false, false) || (check_t_reverse && check(false, true)) ||
-         (check_s_reverse && check(true, false)) ||
-         (check_s_reverse && check_t_reverse && check(true, true));
+                                               return check(false, false) ||
+                                                      (check_t_reverse &&
+                                                       check(false, true)) ||
+                                                      (check_s_reverse &&
+                                                       check(true, false)) ||
+                                                      (check_s_reverse &&
+                                                       check_t_reverse &&
+                                                       check(true, true));
+                                             });
 }
 
 void IntraCrossExchange::apply() {

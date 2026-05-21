@@ -14,7 +14,7 @@
 
 - Billable wait aligned with output timeline (`billable_total_wait`)
 - VRPTW local search: hybrid wait-cost pruning and `max_duration` checks on all operators
-- Self-test scripts: `scripts/wait_objective_selftest.sh`, `scripts/max_duration_selftest.sh`
+- LS `max_duration` uses fast approximate wait (travel pre-filter)
 
 ### Fixed
 

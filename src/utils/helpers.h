@@ -679,6 +679,13 @@ bool route_jobs_within_max_duration(const Input& input,
                                     Index vehicle_rank,
                                     const std::vector<Index>& jobs);
 
+// Fast max_duration check for VRPTW local search: travel pre-filter + approx
+// billable wait (no TWRoute rebuild). Exact route_jobs_within_max_duration is
+// kept for heuristics and insertion construction.
+bool route_jobs_within_max_duration_for_ls(const Input& input,
+                                           Index vehicle_rank,
+                                           const std::vector<Index>& jobs);
+
 inline bool routes_within_max_duration(const Input& input,
                                        Index v1,
                                        const std::vector<Index>& jobs1,
@@ -686,6 +693,36 @@ inline bool routes_within_max_duration(const Input& input,
                                        const std::vector<Index>& jobs2) {
   return route_jobs_within_max_duration(input, v1, jobs1) &&
          route_jobs_within_max_duration(input, v2, jobs2);
+}
+
+inline bool routes_within_max_duration_for_ls(const Input& input,
+                                              Index v1,
+                                              const std::vector<Index>& jobs1,
+                                              Index v2,
+                                              const std::vector<Index>& jobs2) {
+  return route_jobs_within_max_duration_for_ls(input, v1, jobs1) &&
+         route_jobs_within_max_duration_for_ls(input, v2, jobs2);
+}
+
+// Skip expensive max_duration simulation when the move cannot beat current best
+// even with all prior wait cost removed (same criterion as wait gain pruning).
+bool skip_max_duration_check_for_ls(const Eval& stored_gain,
+                                    const std::optional<Cost>& wait_ub,
+                                    const Eval& best_known);
+
+template <typename RouteCheck>
+bool max_duration_feasible_for_ls(const Input& input,
+                                  const Eval& stored_gain,
+                                  const std::optional<Cost>& wait_ub,
+                                  const Eval& best_known,
+                                  RouteCheck&& route_check) {
+  if (!input.has_bounded_max_duration()) {
+    return true;
+  }
+  if (skip_max_duration_check_for_ls(stored_gain, wait_ub, best_known)) {
+    return true;
+  }
+  return route_check();
 }
 
 // Post-move job sequences for VRPTW local search (match operator apply paths).
