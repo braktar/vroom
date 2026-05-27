@@ -99,7 +99,9 @@ void PDShift::compute_gain() {
                                                   s_vehicle,
                                                   s_new,
                                                   t_vehicle,
-                                                  t_new)) {
+                                                  t_new,
+                                                  &_tw_s_route,
+                                                  &_tw_t_route)) {
       _valid = false;
       stored_gain = NO_GAIN;
     } else {

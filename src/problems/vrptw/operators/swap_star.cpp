@@ -114,11 +114,33 @@ void SwapStar::compute_gain() {
                                                   s_vehicle,
                                                   ns,
                                                   t_vehicle,
-                                                  nt)) {
+                                                  nt,
+                                                  &_tw_s_route,
+                                                  &_tw_t_route)) {
       stored_gain = NO_GAIN;
     }
   }
   gain_computed = true;
+}
+
+bool SwapStar::is_valid() {
+  if (!gain_computed || choice.gain.cost <= 0) {
+    return false;
+  }
+  if (!_input.has_bounded_max_duration()) {
+    return true;
+  }
+
+  auto ns = s_route;
+  auto nt = t_route;
+  apply_swap_star_to_copies(ns, nt, choice);
+  return utils::routes_within_max_duration_for_ls(_input,
+                                                  s_vehicle,
+                                                  ns,
+                                                  t_vehicle,
+                                                  nt,
+                                                  &_tw_s_route,
+                                                  &_tw_t_route);
 }
 
 void SwapStar::apply() {

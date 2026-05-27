@@ -76,7 +76,7 @@ bool IntraTwoOpt::is_valid() {
                                                  nr.begin() +
                                                    static_cast<std::ptrdiff_t>(t_rank) + 1);
                                                return utils::route_jobs_within_max_duration_for_ls(
-                                                 _input, s_vehicle, nr);
+                                                 _input, s_vehicle, nr, &_tw_s_route);
                                              });
 }
 

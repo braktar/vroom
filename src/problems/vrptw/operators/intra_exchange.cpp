@@ -68,7 +68,7 @@ bool IntraExchange::is_valid() {
                                                  _moved_jobs,
                                                  route_after);
                                                return utils::route_jobs_within_max_duration_for_ls(
-                                                 _input, s_vehicle, route_after);
+                                                 _input, s_vehicle, route_after, &_tw_s_route);
                                              });
 }
 

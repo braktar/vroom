@@ -40,7 +40,7 @@ bool TSPFix::is_valid() {
                                              best_known_threshold,
                                              [&] {
                                                return utils::route_jobs_within_max_duration_for_ls(
-                                                 _input, s_vehicle, tsp_route);
+                                                 _input, s_vehicle, tsp_route, &_tw_s_route);
                                              });
 }
 

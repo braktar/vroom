@@ -83,7 +83,9 @@ bool RouteExchange::is_valid() {
                                                  s_vehicle,
                                                  t_route,
                                                  t_vehicle,
-                                                 s_route);
+                                                 s_route,
+                                                 &_tw_s_route,
+                                                 &_tw_t_route);
                                              });
 }
 

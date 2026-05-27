@@ -30,6 +30,8 @@ public:
            Index t_vehicle,
            const Eval& best_known_gain);
 
+  bool is_valid() override;
+
   void apply() override;
 };
 

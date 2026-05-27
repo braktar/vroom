@@ -117,7 +117,7 @@ bool PriorityReplace::is_valid() {
                                                    s_route.end());
                                                  return utils::
                                                    route_jobs_within_max_duration_for_ls(
-                                                     _input, s_vehicle, new_route);
+                                                     _input, s_vehicle, new_route, &_tw_s_route);
                                                };
 
                                                auto check_end = [&]() {
@@ -134,7 +134,7 @@ bool PriorityReplace::is_valid() {
                                                  new_route.push_back(_u);
                                                  return utils::
                                                    route_jobs_within_max_duration_for_ls(
-                                                     _input, s_vehicle, new_route);
+                                                     _input, s_vehicle, new_route, &_tw_s_route);
                                                };
 
                                                return check_start() || check_end();

@@ -83,7 +83,9 @@ bool Relocate::is_valid() {
                                                  s_vehicle,
                                                  source_after,
                                                  t_vehicle,
-                                                 target_after);
+                                                 target_after,
+                                                 &_tw_s_route,
+                                                 &_tw_t_route);
                                              });
 }
 

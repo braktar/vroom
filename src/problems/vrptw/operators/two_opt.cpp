@@ -88,7 +88,13 @@ bool TwoOpt::is_valid() {
                                                                                 ns,
                                                                                 nt);
                                                return utils::routes_within_max_duration_for_ls(
-                                                 _input, s_vehicle, ns, t_vehicle, nt);
+                                                 _input,
+                                                 s_vehicle,
+                                                 ns,
+                                                 t_vehicle,
+                                                 nt,
+                                                 &_tw_s_route,
+                                                 &_tw_t_route);
                                              });
 }
 

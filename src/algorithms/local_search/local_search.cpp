@@ -1766,7 +1766,7 @@ void LocalSearch<Route,
                    target,
                    best_gains[source][target]);
 
-        if (best_gains[source][target] < r.gain()) {
+        if (best_gains[source][target] < r.gain() && r.is_valid()) {
           best_gains[source][target] = r.gain();
           best_ops[source][target] = std::make_unique<SwapStar>(r);
         }
@@ -1805,7 +1805,7 @@ void LocalSearch<Route,
                        _sol,
                        best_gains[source][target]);
 
-          if (best_gains[source][target] < r.gain()) {
+          if (best_gains[source][target] < r.gain() && r.is_valid()) {
             best_gains[source][target] = r.gain();
             best_ops[source][target] = std::make_unique<RouteSplit>(r);
           }

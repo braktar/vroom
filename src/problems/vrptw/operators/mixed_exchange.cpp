@@ -116,7 +116,10 @@ bool MixedExchange::is_valid() {
                                                  t_rank,
                                                  s_is_normal_valid,
                                                  s_is_reverse_valid,
-                                                 check_t_reverse);
+                                                 _normal_s_gain,
+                                                 _reversed_s_gain,
+                                                 &_tw_s_route,
+                                                 &_tw_t_route);
                                              });
 }
 

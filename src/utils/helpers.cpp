@@ -93,7 +93,7 @@ bool route_jobs_within_max_duration(const Input& input,
   }
 
   auto eval = route_eval_for_vehicle(input, vehicle_rank, jobs);
-  if (!jobs.empty() && vehicle.breaks.empty()) {
+  if (!jobs.empty()) {
     if (const auto wait =
           billable_wait_for_job_sequence_aligned_with_route_eval(input,
                                                                vehicle_rank,
@@ -105,6 +105,82 @@ bool route_jobs_within_max_duration(const Input& input,
   }
 
   return vehicle.ok_for_total_duration(eval);
+}
+
+namespace {
+
+// Apply the edit from tw.route -> jobs with a single partial replace (same as
+// add/remove/replace in operators). Full-route replace(0, n, jobs) would
+// re-run break ordering on the whole route and underestimate billable wait.
+bool apply_jobs_to_tw_route(TWRoute& tw,
+                            const Input& input,
+                            const std::vector<Index>& jobs) {
+  if (tw.route == jobs) {
+    return true;
+  }
+
+  const auto& old = tw.route;
+  Index i = 0;
+  while (i < static_cast<Index>(old.size()) && i < static_cast<Index>(jobs.size()) &&
+         old[i] == jobs[i]) {
+    ++i;
+  }
+
+  Index old_end = static_cast<Index>(old.size());
+  Index jobs_end = static_cast<Index>(jobs.size());
+  while (old_end > i && jobs_end > i && old[old_end - 1] == jobs[jobs_end - 1]) {
+    --old_end;
+    --jobs_end;
+  }
+
+  Amount delivery = input.zero_amount();
+  for (Index k = i; k < jobs_end; ++k) {
+    delivery += input.jobs[jobs[k]].delivery;
+  }
+
+  if (!tw.is_valid_addition_for_tw(input,
+                                   delivery,
+                                   jobs.begin() + static_cast<std::ptrdiff_t>(i),
+                                   jobs.begin() + static_cast<std::ptrdiff_t>(jobs_end),
+                                   i,
+                                   old_end)) {
+    return false;
+  }
+
+  tw.replace(input,
+             delivery,
+             jobs.begin() + static_cast<std::ptrdiff_t>(i),
+             jobs.begin() + static_cast<std::ptrdiff_t>(jobs_end),
+             i,
+             old_end);
+  return true;
+}
+
+bool tw_route_rebuild_and_within_max_duration(const Input& input,
+                                              TWRoute tw,
+                                              const std::vector<Index>& jobs) {
+  const auto& vehicle = input.vehicles[tw.v_rank];
+  if (vehicle.max_duration == DEFAULT_MAX_DURATION) {
+    return true;
+  }
+
+  if (!jobs.empty() && jobs != tw.route) {
+    if (!apply_jobs_to_tw_route(tw, input, jobs)) {
+      return false;
+    }
+  }
+
+  auto eval = route_eval_for_vehicle(input, tw.v_rank, tw.route);
+  if (!tw.route.empty()) {
+    eval.wait_duration = tw.billable_total_wait;
+  }
+  return vehicle.ok_for_total_duration(eval);
+}
+
+} // namespace
+
+bool tw_route_within_max_duration(const Input& input, const TWRoute& tw) {
+  return tw_route_rebuild_and_within_max_duration(input, tw, tw.route);
 }
 
 void build_relocate_post_routes(const std::vector<Index>& s_route,
@@ -245,6 +321,67 @@ void build_one_route_after_moved_jobs(
             route_after.begin() + static_cast<std::ptrdiff_t>(first_rank));
 }
 
+bool edge_swap_chosen_reverse(Eval normal_gain,
+                              Eval reversed_gain,
+                              bool is_normal_valid,
+                              bool is_reverse_valid) {
+  if (normal_gain < reversed_gain) {
+    return is_reverse_valid;
+  }
+  return !is_normal_valid;
+}
+
+std::pair<bool, bool> intra_cross_exchange_chosen_reverse_edges(
+  Eval normal_s_gain,
+  Eval reversed_s_gain,
+  Eval normal_t_gain,
+  Eval reversed_t_gain,
+  bool s_normal_t_normal_is_valid,
+  bool s_normal_t_reverse_is_valid,
+  bool s_reverse_t_normal_is_valid,
+  bool s_reverse_t_reverse_is_valid) {
+  Eval best_gain = NO_GAIN;
+  bool reverse_s = false;
+  bool reverse_t = false;
+
+  auto consider = [&](bool rev_s, bool rev_t, bool valid, Eval gain) {
+    if (!valid) {
+      return;
+    }
+    if (best_gain < gain) {
+      best_gain = gain;
+      reverse_s = rev_s;
+      reverse_t = rev_t;
+    }
+  };
+
+  consider(false, false, s_normal_t_normal_is_valid, normal_s_gain + normal_t_gain);
+  consider(false, true, s_normal_t_reverse_is_valid, reversed_s_gain + normal_t_gain);
+  consider(true, true, s_reverse_t_reverse_is_valid, reversed_s_gain + reversed_t_gain);
+  consider(true, false, s_reverse_t_normal_is_valid, normal_s_gain + reversed_t_gain);
+
+  return {reverse_s, reverse_t};
+}
+
+std::pair<bool, bool> cross_exchange_chosen_reverse_edges(
+  Eval normal_s_gain,
+  Eval reversed_s_gain,
+  bool s_is_normal_valid,
+  bool s_is_reverse_valid,
+  Eval normal_t_gain,
+  Eval reversed_t_gain,
+  bool t_is_normal_valid,
+  bool t_is_reverse_valid) {
+  return {edge_swap_chosen_reverse(normal_t_gain,
+                                  reversed_t_gain,
+                                  t_is_normal_valid,
+                                  t_is_reverse_valid),
+          edge_swap_chosen_reverse(normal_s_gain,
+                                 reversed_s_gain,
+                                 s_is_normal_valid,
+                                 s_is_reverse_valid)};
+}
+
 bool cross_exchange_within_max_duration(
   const Input& input,
   Index s_vehicle,
@@ -257,43 +394,48 @@ bool cross_exchange_within_max_duration(
   bool s_is_reverse_valid,
   bool t_is_normal_valid,
   bool t_is_reverse_valid,
-  bool check_s_reverse,
-  bool check_t_reverse) {
+  Eval normal_s_gain,
+  Eval reversed_s_gain,
+  Eval normal_t_gain,
+  Eval reversed_t_gain,
+  const TWRoute* tw_s,
+  const TWRoute* tw_t) {
   if (!input.has_bounded_max_duration()) {
     return true;
   }
 
+  const auto [reverse_s, reverse_t] = cross_exchange_chosen_reverse_edges(
+    normal_s_gain,
+    reversed_s_gain,
+    s_is_normal_valid,
+    s_is_reverse_valid,
+    normal_t_gain,
+    reversed_t_gain,
+    t_is_normal_valid,
+    t_is_reverse_valid);
+
+  if (!(reverse_t ? s_is_reverse_valid : s_is_normal_valid) ||
+      !(reverse_s ? t_is_reverse_valid : t_is_normal_valid)) {
+    return false;
+  }
+
   std::vector<Index> ns;
   std::vector<Index> nt;
-  auto combo_ok = [&](bool reverse_s, bool reverse_t) {
-    if (!(reverse_s ? s_is_reverse_valid : s_is_normal_valid) ||
-        !(reverse_t ? t_is_reverse_valid : t_is_normal_valid)) {
-      return false;
-    }
-    build_cross_exchange_post_routes(s_route,
-                                     s_rank,
-                                     t_route,
-                                     t_rank,
-                                     reverse_s,
-                                     reverse_t,
-                                     ns,
-                                     nt);
-    return routes_within_max_duration_for_ls(input, s_vehicle, ns, t_vehicle, nt);
-  };
-
-  if (combo_ok(false, false)) {
-    return true;
-  }
-  if (check_t_reverse && combo_ok(false, true)) {
-    return true;
-  }
-  if (check_s_reverse && combo_ok(true, false)) {
-    return true;
-  }
-  if (check_s_reverse && check_t_reverse && combo_ok(true, true)) {
-    return true;
-  }
-  return false;
+  build_cross_exchange_post_routes(s_route,
+                                   s_rank,
+                                   t_route,
+                                   t_rank,
+                                   reverse_s,
+                                   reverse_t,
+                                   ns,
+                                   nt);
+  return routes_within_max_duration_for_ls(input,
+                                           s_vehicle,
+                                           ns,
+                                           t_vehicle,
+                                           nt,
+                                           tw_s,
+                                           tw_t);
 }
 
 bool or_opt_within_max_duration(const Input& input,
@@ -304,24 +446,33 @@ bool or_opt_within_max_duration(const Input& input,
                                 const std::vector<Index>& t_route,
                                 Index t_rank,
                                 bool is_normal_valid,
-                                bool is_reverse_valid) {
+                                bool is_reverse_valid,
+                                Eval normal_t_gain,
+                                Eval reversed_t_gain,
+                                const TWRoute* tw_s,
+                                const TWRoute* tw_t) {
   if (!input.has_bounded_max_duration()) {
     return true;
   }
 
+  const bool reverse_s = edge_swap_chosen_reverse(normal_t_gain,
+                                                  reversed_t_gain,
+                                                  is_normal_valid,
+                                                  is_reverse_valid);
+  if (!(reverse_s ? is_reverse_valid : is_normal_valid)) {
+    return false;
+  }
+
   std::vector<Index> ns;
   std::vector<Index> nt;
-  if (is_normal_valid) {
-    build_or_opt_post_routes(s_route, s_rank, t_route, t_rank, false, ns, nt);
-    if (routes_within_max_duration_for_ls(input, s_vehicle, ns, t_vehicle, nt)) {
-      return true;
-    }
-  }
-  if (is_reverse_valid) {
-    build_or_opt_post_routes(s_route, s_rank, t_route, t_rank, true, ns, nt);
-    return routes_within_max_duration_for_ls(input, s_vehicle, ns, t_vehicle, nt);
-  }
-  return false;
+  build_or_opt_post_routes(s_route, s_rank, t_route, t_rank, reverse_s, ns, nt);
+  return routes_within_max_duration_for_ls(input,
+                                           s_vehicle,
+                                           ns,
+                                           t_vehicle,
+                                           nt,
+                                           tw_s,
+                                           tw_t);
 }
 
 bool mixed_exchange_within_max_duration(
@@ -334,28 +485,38 @@ bool mixed_exchange_within_max_duration(
   Index t_rank,
   bool s_is_normal_valid,
   bool s_is_reverse_valid,
-  bool check_t_reverse) {
+  Eval normal_s_gain,
+  Eval reversed_s_gain,
+  const TWRoute* tw_s,
+  const TWRoute* tw_t) {
   if (!input.has_bounded_max_duration()) {
     return true;
   }
 
+  const bool reverse_t = edge_swap_chosen_reverse(normal_s_gain,
+                                                  reversed_s_gain,
+                                                  s_is_normal_valid,
+                                                  s_is_reverse_valid);
+  if (!(reverse_t ? s_is_reverse_valid : s_is_normal_valid)) {
+    return false;
+  }
+
   std::vector<Index> ns;
   std::vector<Index> nt;
-  auto combo_ok = [&](bool reverse_t) {
-    if (!(reverse_t ? s_is_reverse_valid : s_is_normal_valid)) {
-      return false;
-    }
-    build_mixed_exchange_post_routes(s_route,
-                                     s_rank,
-                                     t_route,
-                                     t_rank,
-                                     reverse_t,
-                                     ns,
-                                     nt);
-    return routes_within_max_duration_for_ls(input, s_vehicle, ns, t_vehicle, nt);
-  };
-
-  return combo_ok(false) || (check_t_reverse && combo_ok(true));
+  build_mixed_exchange_post_routes(s_route,
+                                   s_rank,
+                                   t_route,
+                                   t_rank,
+                                   reverse_t,
+                                   ns,
+                                   nt);
+  return routes_within_max_duration_for_ls(input,
+                                           s_vehicle,
+                                           ns,
+                                           t_vehicle,
+                                           nt,
+                                           tw_s,
+                                           tw_t);
 }
 
 bool insertion_respects_vehicle_bounds(const Input& input,
@@ -415,43 +576,47 @@ bool tw_route_can_append_single_for_wait_eval(const Input& input,
          tw.is_valid_addition_for_tw(input, job_rank, rank);
 }
 
+bool tw_route_append_job_for_billable_wait_eval(const Input& input,
+                                                TWRoute& tw,
+                                                Index job_rank) {
+  const Index rank = static_cast<Index>(tw.route.size());
+  const auto& job = input.jobs[job_rank];
+  if (job.type == JOB_TYPE::SINGLE) {
+    if (!tw_route_can_append_single_for_wait_eval(input, tw, job_rank)) {
+      return false;
+    }
+    tw.add(input, job_rank, rank);
+    return true;
+  }
+
+  const std::array<Index, 1> a({job_rank});
+  if (!tw.is_valid_addition_for_tw(input,
+                                   job.delivery,
+                                   a.begin(),
+                                   a.end(),
+                                   rank,
+                                   rank)) {
+    return false;
+  }
+  tw.replace(input, job.delivery, a.begin(), a.end(), rank, rank);
+  return true;
+}
+
 } // namespace
 
 std::optional<Duration> billable_wait_for_job_sequence_aligned_with_route_eval(
   const Input& input,
   Index vehicle_rank,
   const std::vector<Index>& jobs) {
-  const auto& v = input.vehicles[vehicle_rank];
-  if (!v.breaks.empty()) {
-    return std::nullopt;
-  }
   if (jobs.empty()) {
     return Duration{0};
   }
 
-  // Exact evaluation (backward depot release). For fast LS estimates use
-  // wait_cost_approx_job_sequence instead.
-  bool has_non_single = false;
-  for (const Index jr : jobs) {
-    if (input.jobs[jr].type != JOB_TYPE::SINGLE) {
-      has_non_single = true;
-      break;
-    }
-  }
-  if (has_non_single) {
-    const auto approx = approx_billable_wait_jobs_only(input,
-                                                       vehicle_rank,
-                                                       jobs,
-                                                       v.earliest_route_start());
-    return approx;
-  }
-
   TWRoute tw(input, vehicle_rank, input.get_amount_size());
   for (const Index jr : jobs) {
-    if (!tw_route_can_append_single_for_wait_eval(input, tw, jr)) {
+    if (!tw_route_append_job_for_billable_wait_eval(input, tw, jr)) {
       return std::nullopt;
     }
-    tw.add(input, jr, static_cast<Index>(tw.route.size()));
   }
   tw.refresh_billable_total_wait_for_eval(input);
   return tw.billable_total_wait;
@@ -506,40 +671,18 @@ std::optional<Duration> approx_billable_wait_jobs_only(
 
 bool route_jobs_within_max_duration_for_ls(const Input& input,
                                            Index vehicle_rank,
-                                           const std::vector<Index>& jobs) {
+                                           const std::vector<Index>& jobs,
+                                           const TWRoute* tw_live) {
   const auto& vehicle = input.vehicles[vehicle_rank];
   if (vehicle.max_duration == DEFAULT_MAX_DURATION) {
     return true;
   }
 
-  auto eval = route_eval_for_vehicle(input, vehicle_rank, jobs);
-  if (!vehicle.ok_for_total_duration(eval)) {
-    return false;
+  if (tw_live != nullptr && tw_live->v_rank == vehicle_rank) {
+    return tw_route_rebuild_and_within_max_duration(input, *tw_live, jobs);
   }
 
-  if (jobs.empty() || !vehicle.breaks.empty()) {
-    return true;
-  }
-
-  const auto wait = approx_billable_wait_jobs_only(input,
-                                                   vehicle_rank,
-                                                   jobs,
-                                                   vehicle.earliest_route_start());
-  if (!wait.has_value()) {
-    return false;
-  }
-
-  eval.wait_duration = *wait;
-  return vehicle.ok_for_total_duration(eval);
-}
-
-bool skip_max_duration_check_for_ls(const Eval& stored_gain,
-                                    const std::optional<Cost>& wait_ub,
-                                    const Eval& best_known) {
-  if (best_known == NO_EVAL || !wait_ub.has_value()) {
-    return false;
-  }
-  return stored_gain.cost + *wait_ub <= best_known.cost;
+  return route_jobs_within_max_duration(input, vehicle_rank, jobs);
 }
 
 std::optional<Cost> wait_cost_approx_job_sequence(
@@ -1442,6 +1585,7 @@ Route format_route(const Input& input,
   UserDuration user_waiting_time = steps.back().waiting_time;
   Duration setup = 0;
   Duration service = 0;
+  Duration jobs_service = 0;
   Duration forward_wt = 0;
   Priority priority = 0;
   Amount sum_pickups(input.zero_amount());
@@ -1552,6 +1696,7 @@ Route format_route(const Input& input,
     eval_sum += current_eval;
     const auto current_service = current_job.services[v.type];
     service += current_service;
+    jobs_service += current_service;
     priority += current_job.priority;
 
     const auto current_setup = (current_job.index() == previous_location)
@@ -1737,10 +1882,12 @@ Route format_route(const Input& input,
   assert(expected_delivery_ranks.empty());
 
   assert(eval_sum.duration == duration);
+  // max_duration: travel + job setup/service + billable wait (break service is
+  // excluded from work time).
   assert(v.ok_for_range_bounds(Eval(0,
                                     eval_sum.duration,
                                     eval_sum.distance,
-                                    setup + service,
+                                    setup + jobs_service,
                                     tw_r.billable_total_wait)));
 
   assert(v.fixed_cost() % (DURATION_FACTOR * COST_FACTOR) == 0);

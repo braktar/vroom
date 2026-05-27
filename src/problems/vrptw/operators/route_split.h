@@ -30,6 +30,8 @@ public:
              std::vector<TWRoute>& sol,
              const Eval& best_known_gain);
 
+  bool is_valid() override;
+
   void apply() override;
 };
 

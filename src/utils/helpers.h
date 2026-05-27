@@ -679,12 +679,15 @@ bool route_jobs_within_max_duration(const Input& input,
                                     Index vehicle_rank,
                                     const std::vector<Index>& jobs);
 
-// Fast max_duration check for VRPTW local search: travel pre-filter + approx
-// billable wait (no TWRoute rebuild). Exact route_jobs_within_max_duration is
-// kept for heuristics and insertion construction.
+// Same total-duration bound as update_route_eval (travel + task + billable wait).
+bool tw_route_within_max_duration(const Input& input, const TWRoute& tw);
+
+// VRPTW LS: when tw_live is set, rebuild post-move jobs on a copy of the live
+// route (replace) so billable wait matches apply(); otherwise scratch TWRoute.
 bool route_jobs_within_max_duration_for_ls(const Input& input,
                                            Index vehicle_rank,
-                                           const std::vector<Index>& jobs);
+                                           const std::vector<Index>& jobs,
+                                           const TWRoute* tw_live = nullptr);
 
 inline bool routes_within_max_duration(const Input& input,
                                        Index v1,
@@ -699,27 +702,20 @@ inline bool routes_within_max_duration_for_ls(const Input& input,
                                               Index v1,
                                               const std::vector<Index>& jobs1,
                                               Index v2,
-                                              const std::vector<Index>& jobs2) {
-  return route_jobs_within_max_duration_for_ls(input, v1, jobs1) &&
-         route_jobs_within_max_duration_for_ls(input, v2, jobs2);
+                                              const std::vector<Index>& jobs2,
+                                              const TWRoute* tw1 = nullptr,
+                                              const TWRoute* tw2 = nullptr) {
+  return route_jobs_within_max_duration_for_ls(input, v1, jobs1, tw1) &&
+         route_jobs_within_max_duration_for_ls(input, v2, jobs2, tw2);
 }
-
-// Skip expensive max_duration simulation when the move cannot beat current best
-// even with all prior wait cost removed (same criterion as wait gain pruning).
-bool skip_max_duration_check_for_ls(const Eval& stored_gain,
-                                    const std::optional<Cost>& wait_ub,
-                                    const Eval& best_known);
 
 template <typename RouteCheck>
 bool max_duration_feasible_for_ls(const Input& input,
-                                  const Eval& stored_gain,
-                                  const std::optional<Cost>& wait_ub,
-                                  const Eval& best_known,
+                                  const Eval& /* stored_gain */,
+                                  const std::optional<Cost>& /* wait_ub */,
+                                  const Eval& /* best_known */,
                                   RouteCheck&& route_check) {
   if (!input.has_bounded_max_duration()) {
-    return true;
-  }
-  if (skip_max_duration_check_for_ls(stored_gain, wait_ub, best_known)) {
     return true;
   }
   return route_check();
@@ -783,6 +779,32 @@ void build_one_route_after_moved_jobs(
   const std::vector<Index>& moved_jobs,
   std::vector<Index>& route_after);
 
+// Edge reversal flags chosen in operator compute_gain() (not every valid combo).
+bool edge_swap_chosen_reverse(Eval normal_gain,
+                              Eval reversed_gain,
+                              bool is_normal_valid,
+                              bool is_reverse_valid);
+
+std::pair<bool, bool> intra_cross_exchange_chosen_reverse_edges(
+  Eval normal_s_gain,
+  Eval reversed_s_gain,
+  Eval normal_t_gain,
+  Eval reversed_t_gain,
+  bool s_normal_t_normal_is_valid,
+  bool s_normal_t_reverse_is_valid,
+  bool s_reverse_t_normal_is_valid,
+  bool s_reverse_t_reverse_is_valid);
+
+std::pair<bool, bool> cross_exchange_chosen_reverse_edges(
+  Eval normal_s_gain,
+  Eval reversed_s_gain,
+  bool s_is_normal_valid,
+  bool s_is_reverse_valid,
+  Eval normal_t_gain,
+  Eval reversed_t_gain,
+  bool t_is_normal_valid,
+  bool t_is_reverse_valid);
+
 bool cross_exchange_within_max_duration(
   const Input& input,
   Index s_vehicle,
@@ -795,8 +817,12 @@ bool cross_exchange_within_max_duration(
   bool s_is_reverse_valid,
   bool t_is_normal_valid,
   bool t_is_reverse_valid,
-  bool check_s_reverse,
-  bool check_t_reverse);
+  Eval normal_s_gain,
+  Eval reversed_s_gain,
+  Eval normal_t_gain,
+  Eval reversed_t_gain,
+  const TWRoute* tw_s = nullptr,
+  const TWRoute* tw_t = nullptr);
 
 bool or_opt_within_max_duration(const Input& input,
                                 Index s_vehicle,
@@ -806,7 +832,11 @@ bool or_opt_within_max_duration(const Input& input,
                                 const std::vector<Index>& t_route,
                                 Index t_rank,
                                 bool is_normal_valid,
-                                bool is_reverse_valid);
+                                bool is_reverse_valid,
+                                Eval normal_t_gain,
+                                Eval reversed_t_gain,
+                                const TWRoute* tw_s = nullptr,
+                                const TWRoute* tw_t = nullptr);
 
 bool mixed_exchange_within_max_duration(
   const Input& input,
@@ -818,7 +848,10 @@ bool mixed_exchange_within_max_duration(
   Index t_rank,
   bool s_is_normal_valid,
   bool s_is_reverse_valid,
-  bool check_t_reverse);
+  Eval normal_s_gain,
+  Eval reversed_s_gain,
+  const TWRoute* tw_s = nullptr,
+  const TWRoute* tw_t = nullptr);
 
 bool insertion_respects_vehicle_bounds(const Input& input,
                                        Index vehicle_rank,
@@ -840,7 +873,8 @@ std::optional<Duration> approx_billable_wait_jobs_only(
 // Billable wait duration for `jobs` in order on `vehicle_rank`, aligned with
 // route evaluation: scratch TWRoute built with sequential adds, then
 // refresh_billable_total_wait_for_eval (backward min depot leave + forward waits).
-// Skips vehicles with breaks. nullopt if TW infeasible for that sequence.
+// nullopt if TW infeasible for that sequence (uses scratch TWRoute when breaks
+// are present).
 std::optional<Duration> billable_wait_for_job_sequence_aligned_with_route_eval(
   const Input& input,
   Index vehicle_rank,

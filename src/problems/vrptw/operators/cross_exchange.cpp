@@ -141,8 +141,12 @@ bool CrossExchange::is_valid() {
                                                  s_is_reverse_valid,
                                                  t_is_normal_valid,
                                                  t_is_reverse_valid,
-                                                 check_s_reverse,
-                                                 check_t_reverse);
+                                                 _normal_s_gain,
+                                                 _reversed_s_gain,
+                                                 _normal_t_gain,
+                                                 _reversed_t_gain,
+                                                 &_tw_s_route,
+                                                 &_tw_t_route);
                                              });
 }
 

@@ -82,6 +82,26 @@ void RouteSplit::compute_gain() {
   gain_computed = true;
 }
 
+bool RouteSplit::is_valid() {
+  if (!gain_computed || choice.gain.cost <= 0) {
+    return false;
+  }
+  if (!_input.has_bounded_max_duration()) {
+    return true;
+  }
+
+  const Index v_begin = _empty_route_ranks[choice.v_begin];
+  const Index v_end = _empty_route_ranks[choice.v_end];
+  std::vector<Index> prefix(s_route.begin(),
+                            s_route.begin() +
+                              static_cast<std::ptrdiff_t>(choice.split_rank));
+  std::vector<Index> suffix(
+    s_route.begin() + static_cast<std::ptrdiff_t>(choice.split_rank),
+    s_route.end());
+  return utils::route_jobs_within_max_duration_for_ls(_input, v_begin, prefix) &&
+         utils::route_jobs_within_max_duration_for_ls(_input, v_end, suffix);
+}
+
 void RouteSplit::apply() {
   assert(choice.gain != NO_GAIN);
 

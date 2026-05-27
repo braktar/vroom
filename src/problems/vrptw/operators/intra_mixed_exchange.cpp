@@ -92,29 +92,30 @@ bool IntraMixedExchange::is_valid() {
                                              get_wait_gain_upper_bound(),
                                              best_known_threshold,
                                              [&] {
-                                               auto check = [&](bool reverse) {
-                                                 if (!(reverse ? s_is_reverse_valid
-                                                               : s_is_normal_valid)) {
-                                                   return false;
-                                                 }
-                                                 auto moved = _moved_jobs;
-                                                 if (reverse) {
-                                                   std::swap(moved[_t_edge_first],
-                                                             moved[_t_edge_last]);
-                                                 }
-                                                 std::vector<Index> route_after;
-                                                 utils::build_one_route_after_moved_jobs(
-                                                   s_route,
-                                                   _first_rank,
-                                                   moved,
-                                                   route_after);
-                                                 return utils::
-                                                   route_jobs_within_max_duration_for_ls(
-                                                     _input, s_vehicle, route_after);
-                                               };
-
-                                               return check(false) ||
-                                                      (check_t_reverse && check(true));
+                                               const bool reverse_t =
+                                                 utils::edge_swap_chosen_reverse(
+                                                   _normal_s_gain,
+                                                   _reversed_s_gain,
+                                                   s_is_normal_valid,
+                                                   s_is_reverse_valid);
+                                               if (!(reverse_t ? s_is_reverse_valid
+                                                                 : s_is_normal_valid)) {
+                                                 return false;
+                                               }
+                                               auto moved = _moved_jobs;
+                                               if (reverse_t) {
+                                                 std::swap(moved[_t_edge_first],
+                                                           moved[_t_edge_last]);
+                                               }
+                                               std::vector<Index> route_after;
+                                               utils::build_one_route_after_moved_jobs(
+                                                 s_route,
+                                                 _first_rank,
+                                                 moved,
+                                                 route_after);
+                                               return utils::
+                                                 route_jobs_within_max_duration_for_ls(
+                                                   _input, s_vehicle, route_after, &_tw_s_route);
                                              });
 }
 

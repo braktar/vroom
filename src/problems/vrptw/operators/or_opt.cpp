@@ -103,7 +103,11 @@ bool OrOpt::is_valid() {
                                                  t_route,
                                                  t_rank,
                                                  is_normal_valid,
-                                                 is_reverse_valid);
+                                                 is_reverse_valid,
+                                                 _normal_t_gain,
+                                                 _reversed_t_gain,
+                                                 &_tw_s_route,
+                                                 &_tw_t_route);
                                              });
 }
 

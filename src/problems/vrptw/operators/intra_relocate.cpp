@@ -64,7 +64,7 @@ bool IntraRelocate::is_valid() {
                                                utils::build_intra_relocate_post_route(
                                                  s_route, s_rank, t_rank, route_after);
                                                return utils::route_jobs_within_max_duration_for_ls(
-                                                 _input, s_vehicle, route_after);
+                                                 _input, s_vehicle, route_after, &_tw_s_route);
                                              });
 }
 
