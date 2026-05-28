@@ -50,13 +50,14 @@ compute_best_insertion_single(const Input& input,
       Eval current_eval =
         utils::addition_eval(input, j, v_target, route.route, rank);
       if (current_eval.cost < result.eval.cost &&
-          utils::insertion_respects_vehicle_bounds(input,
-                                                   v,
-                                                   sol_state.route_evals[v],
-                                                   current_eval,
-                                                   route.route,
-                                                   j,
-                                                   rank) &&
+          utils::insertion_respects_vehicle_bounds_for_route(input,
+                                                             v,
+                                                             sol_state
+                                                               .route_evals[v],
+                                                             current_eval,
+                                                             route,
+                                                             j,
+                                                             rank) &&
           current_job.pickup <= route.pickup_margin() &&
           current_job.delivery <= route.delivery_margin() &&
           route.is_valid_addition_for_capacity(input,
@@ -215,7 +216,10 @@ RouteInsertion compute_best_insertion_pd(const Input& input,
 
         // Update best cost depending on validity.
         bool is_valid =
-          utils::route_jobs_within_max_duration(input, v, route_after_pd) &&
+          utils::route_after_jobs_within_max_duration(input,
+                                                      v,
+                                                      route_after_pd,
+                                                      route) &&
           valid_for_capacity(input,
                                            route,
                                            modified_with_pd.begin(),

@@ -13,6 +13,7 @@ All rights reserved (see LICENSE).
 #include <optional>
 #include <string>
 #include <tuple>
+#include <type_traits>
 #include <vector>
 
 #include "structures/typedefs.h"
@@ -679,7 +680,7 @@ bool route_jobs_within_max_duration(const Input& input,
                                     Index vehicle_rank,
                                     const std::vector<Index>& jobs);
 
-// Same total-duration bound as update_route_eval (travel + task + billable wait).
+// Same bounds as update_route_eval + assert in LS (travel, distance, max_duration).
 bool tw_route_within_max_duration(const Input& input, const TWRoute& tw);
 
 // VRPTW LS: when tw_live is set, rebuild post-move jobs on a copy of the live
@@ -688,6 +689,20 @@ bool route_jobs_within_max_duration_for_ls(const Input& input,
                                            Index vehicle_rank,
                                            const std::vector<Index>& jobs,
                                            const TWRoute* tw_live = nullptr);
+
+template <class Route>
+bool route_after_jobs_within_max_duration(const Input& input,
+                                          Index vehicle_rank,
+                                          const std::vector<Index>& jobs,
+                                          const Route& route) {
+  if constexpr (std::is_same_v<Route, TWRoute>) {
+    return route_jobs_within_max_duration_for_ls(input,
+                                                 vehicle_rank,
+                                                 jobs,
+                                                 &route);
+  }
+  return route_jobs_within_max_duration(input, vehicle_rank, jobs);
+}
 
 inline bool routes_within_max_duration(const Input& input,
                                        Index v1,
@@ -859,7 +874,36 @@ bool insertion_respects_vehicle_bounds(const Input& input,
                                        const Eval& insertion_eval,
                                        const std::vector<Index>& route,
                                        Index job_rank,
-                                       Index rank);
+                                       Index rank,
+                                       const TWRoute* tw_live = nullptr);
+
+template <class Route>
+bool insertion_respects_vehicle_bounds_for_route(
+  const Input& input,
+  Index vehicle_rank,
+  const Eval& route_eval,
+  const Eval& insertion_eval,
+  const Route& route,
+  Index job_rank,
+  Index rank) {
+  if constexpr (std::is_same_v<Route, TWRoute>) {
+    return insertion_respects_vehicle_bounds(input,
+                                            vehicle_rank,
+                                            route_eval,
+                                            insertion_eval,
+                                            route.route,
+                                            job_rank,
+                                            rank,
+                                            &route);
+  }
+  return insertion_respects_vehicle_bounds(input,
+                                           vehicle_rank,
+                                           route_eval,
+                                           insertion_eval,
+                                           route.route,
+                                           job_rank,
+                                           rank);
+}
 
 // Approximate billable wait: depot slack plus waits at jobs, forward from
 // fixed_departure without backward re-optimization on `route`. Skips vehicles
@@ -870,11 +914,17 @@ std::optional<Duration> approx_billable_wait_jobs_only(
   const std::vector<Index>& route,
   Duration fixed_departure);
 
+// Billable wait for `jobs` inserted in one batch on an empty route (matches
+// RouteSplit::apply and custom routes). nullopt if TW-infeasible.
+std::optional<Duration>
+billable_wait_for_job_sequence_via_empty_replace(const Input& input,
+                                                 Index vehicle_rank,
+                                                 const std::vector<Index>& jobs);
+
 // Billable wait duration for `jobs` in order on `vehicle_rank`, aligned with
-// route evaluation: scratch TWRoute built with sequential adds, then
-// refresh_billable_total_wait_for_eval (backward min depot leave + forward waits).
-// nullopt if TW infeasible for that sequence (uses scratch TWRoute when breaks
-// are present).
+// route evaluation: scratch TWRoute, then refresh_billable_total_wait_for_eval.
+// Multi-job sequences with mandatory breaks use empty-route batch replace.
+// nullopt if TW infeasible for that sequence.
 std::optional<Duration> billable_wait_for_job_sequence_aligned_with_route_eval(
   const Input& input,
   Index vehicle_rank,

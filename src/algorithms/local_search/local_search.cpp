@@ -1922,6 +1922,15 @@ void LocalSearch<Route,
         update_candidates.push_back(v);
       }
 
+#ifndef NDEBUG
+      if (_input.has_bounded_max_duration()) {
+        for (const auto v_rank : modified_vehicles) {
+          assert(_input.vehicles[v_rank].ok_for_range_bounds(
+            _sol_state.route_evals[v_rank]));
+        }
+      }
+#endif
+
       // Set gains to zero for what needs to be recomputed in the next
       // round and set route pairs accordingly.
       s_t_pairs.clear();

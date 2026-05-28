@@ -307,13 +307,13 @@ inline Eval fill_route(const Input& input,
             lambda * static_cast<double>(regrets[job_rank]);
 
           if (current_cost < best_cost &&
-              utils::insertion_respects_vehicle_bounds(input,
-                                                       v_rank,
-                                                       route_eval,
-                                                       current_eval,
-                                                       route.route,
-                                                       job_rank,
-                                                       r) &&
+              utils::insertion_respects_vehicle_bounds_for_route(input,
+                                                                 v_rank,
+                                                                 route_eval,
+                                                                 current_eval,
+                                                                 route,
+                                                                 job_rank,
+                                                                 r) &&
               current_job.pickup <= route.pickup_margin() &&
               current_job.delivery <= route.delivery_margin() &&
               route.is_valid_addition_for_capacity(input,
@@ -434,9 +434,10 @@ inline Eval fill_route(const Input& input,
                                     modified_with_pd.end());
 
               const bool valid =
-                utils::route_jobs_within_max_duration(input,
-                                                      v_rank,
-                                                      route_after_pd) &&
+                utils::route_after_jobs_within_max_duration(input,
+                                                            v_rank,
+                                                            route_after_pd,
+                                                            route) &&
                 route
                   .is_valid_addition_for_capacity_inclusion(input,
                                                             modified_delivery,
@@ -893,9 +894,9 @@ void set_route(const Input& input,
     if constexpr (std::is_same_v<Route, TWRoute>) {
       route_eval.wait_duration = route.billable_total_wait;
     }
-    if (!vehicle.ok_for_total_duration(route_eval)) {
+    if (!vehicle.ok_for_range_bounds(route_eval)) {
       throw InputException(
-        std::format("Route over max_duration for vehicle {}.", vehicle.id));
+        std::format("Route exceeds vehicle bounds for vehicle {}.", vehicle.id));
     }
   }
 }

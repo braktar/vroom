@@ -104,7 +104,7 @@ bool route_jobs_within_max_duration(const Input& input,
     }
   }
 
-  return vehicle.ok_for_total_duration(eval);
+  return vehicle.ok_for_range_bounds(eval);
 }
 
 namespace {
@@ -174,7 +174,7 @@ bool tw_route_rebuild_and_within_max_duration(const Input& input,
   if (!tw.route.empty()) {
     eval.wait_duration = tw.billable_total_wait;
   }
-  return vehicle.ok_for_total_duration(eval);
+  return vehicle.ok_for_range_bounds(eval);
 }
 
 } // namespace
@@ -525,7 +525,8 @@ bool insertion_respects_vehicle_bounds(const Input& input,
                                        const Eval& insertion_eval,
                                        const std::vector<Index>& route,
                                        Index job_rank,
-                                       Index rank) {
+                                       Index rank,
+                                       const TWRoute* tw_live) {
   const auto& vehicle = input.vehicles[vehicle_rank];
   const Eval combined = route_eval + insertion_eval;
   if (!vehicle.ok_for_travel_time(combined.duration) ||
@@ -538,6 +539,12 @@ bool insertion_respects_vehicle_bounds(const Input& input,
 
   std::vector<Index> jobs = route;
   jobs.insert(jobs.begin() + static_cast<std::ptrdiff_t>(rank), job_rank);
+  if (tw_live != nullptr) {
+    return route_jobs_within_max_duration_for_ls(input,
+                                                 vehicle_rank,
+                                                 jobs,
+                                                 tw_live);
+  }
   return route_jobs_within_max_duration(input, vehicle_rank, jobs);
 }
 
@@ -604,12 +611,46 @@ bool tw_route_append_job_for_billable_wait_eval(const Input& input,
 
 } // namespace
 
+std::optional<Duration>
+billable_wait_for_job_sequence_via_empty_replace(const Input& input,
+                                                 Index vehicle_rank,
+                                                 const std::vector<Index>& jobs) {
+  if (jobs.empty()) {
+    return Duration{0};
+  }
+
+  TWRoute tw(input, vehicle_rank, input.get_amount_size());
+  Amount delivery = input.zero_amount();
+  for (const Index jr : jobs) {
+    delivery += input.jobs[jr].delivery;
+  }
+  if (!tw.is_valid_addition_for_tw(input,
+                                   delivery,
+                                   jobs.begin(),
+                                   jobs.end(),
+                                   0,
+                                   0)) {
+    return std::nullopt;
+  }
+  tw.replace(input, delivery, jobs.begin(), jobs.end(), 0, 0);
+  return tw.billable_total_wait;
+}
+
 std::optional<Duration> billable_wait_for_job_sequence_aligned_with_route_eval(
   const Input& input,
   Index vehicle_rank,
   const std::vector<Index>& jobs) {
   if (jobs.empty()) {
     return Duration{0};
+  }
+
+  const auto& vehicle = input.vehicles[vehicle_rank];
+  // Multi-job batch replace on an empty route (RouteSplit, custom routes)
+  // can schedule mandatory breaks differently than sequential add().
+  if (!vehicle.breaks.empty() && jobs.size() > 1) {
+    return billable_wait_for_job_sequence_via_empty_replace(input,
+                                                            vehicle_rank,
+                                                            jobs);
   }
 
   TWRoute tw(input, vehicle_rank, input.get_amount_size());
@@ -1882,6 +1923,12 @@ Route format_route(const Input& input,
   assert(expected_delivery_ranks.empty());
 
   assert(eval_sum.duration == duration);
+#ifndef NDEBUG
+  // Billable wait must match the format_route timeline (depot idle + in-route).
+  const Duration timeline_billable =
+    (front_step_arrival - v.earliest_route_start()) + forward_wt;
+  assert(timeline_billable == tw_r.billable_total_wait);
+#endif
   // max_duration: travel + job setup/service + billable wait (break service is
   // excluded from work time).
   assert(v.ok_for_range_bounds(Eval(0,

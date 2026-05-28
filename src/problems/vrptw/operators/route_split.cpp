@@ -98,6 +98,8 @@ bool RouteSplit::is_valid() {
   std::vector<Index> suffix(
     s_route.begin() + static_cast<std::ptrdiff_t>(choice.split_rank),
     s_route.end());
+  // Empty target routes: no tw_live; batch replace path in
+  // route_jobs_within_max_duration matches apply().
   return utils::route_jobs_within_max_duration_for_ls(_input, v_begin, prefix) &&
          utils::route_jobs_within_max_duration_for_ls(_input, v_end, suffix);
 }
