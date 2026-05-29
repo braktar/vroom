@@ -31,12 +31,34 @@ UnassignedExchange::UnassignedExchange(const Input& input,
     _tw_s_route(tw_s_route) {
 }
 
-void UnassignedExchange::compute_gain() {
-  utils::vrptw_ls::run_compute_gain(
+bool UnassignedExchange::prunable_by_travel_upper_bound(const Eval& current_best) {
+  Eval travel_ub;
+  if (t_rank == s_rank) {
+    travel_ub = utils::addition_eval_delta(_input,
+                                           _sol_state,
+                                           source,
+                                           s_rank,
+                                           s_rank + 1,
+                                           _u);
+  } else {
+    const auto& v = _input.vehicles[s_vehicle];
+    travel_ub = _sol_state.node_gains[s_vehicle][s_rank] -
+                utils::addition_eval(_input, _u, v, s_route, t_rank);
+  }
+  return utils::vrptw_ls::prunable_by_travel_upper_bound(
+    _input,
+    current_best,
+    travel_ub,
     [&] {
-      set_wait_gain_upper_bound(utils::wait_gain_upper_bound_from_route(
-        _input, s_vehicle, s_route, &_tw_s_route));
-    },
+      return utils::wait_gain_upper_bound_from_route(_input,
+                                                     s_vehicle,
+                                                     s_route,
+                                                     &_tw_s_route);
+    });
+}
+
+void UnassignedExchange::compute_gain() {
+  utils::vrptw_ls::run_travel_compute_gain(
     [&] { cvrp::UnassignedExchange::compute_gain(); });
 }
 void UnassignedExchange::apply_wait_gain_adjustment() {

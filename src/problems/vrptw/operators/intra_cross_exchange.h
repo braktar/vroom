@@ -32,6 +32,8 @@ public:
                      bool check_s_reverse,
                      bool check_t_reverse);
 
+  bool prunable_by_travel_upper_bound(const Eval& current_best) override;
+
   bool is_valid() override;
 
   void apply() override;

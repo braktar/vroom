@@ -11,6 +11,7 @@ All rights reserved (see LICENSE).
 #include <algorithm>
 
 #include "utils/helpers.h"
+#include "utils/helpers_vrptw_ls.h"
 
 namespace vroom::vrptw {
 
@@ -31,12 +32,78 @@ IntraOrOpt::IntraOrOpt(const Input& input,
     _tw_s_route(tw_s_route) {
 }
 
-void IntraOrOpt::compute_gain() {
-  set_wait_gain_upper_bound(utils::wait_gain_upper_bound_from_route(
-    _input, s_vehicle, s_route, &_tw_s_route));
+bool IntraOrOpt::prunable_by_travel_upper_bound(const Eval& current_best) {
+  return utils::vrptw_ls::prunable_by_travel_upper_bound(
+    _input,
+    current_best,
+    gain_upper_bound(),
+    [&] {
+      return utils::wait_gain_upper_bound_from_route(_input,
+                                                     s_vehicle,
+                                                     s_route,
+                                                     &_tw_s_route);
+    });
+}
 
-  (void)gain_upper_bound();
-  cvrp::IntraOrOpt::compute_gain();
+void IntraOrOpt::compute_gain() {
+  if (!_gain_upper_bound_computed) {
+    (void)gain_upper_bound();
+  }
+
+  utils::vrptw_ls::run_edge_swap_compute_gain(
+    stored_gain,
+    gain_computed,
+    _input,
+    [&] { return cvrp::IntraOrOpt::is_valid(); },
+    [&] {
+      is_normal_valid = is_normal_valid &&
+                        _tw_s_route.is_valid_addition_for_tw(_input,
+                                                             _delivery,
+                                                             _moved_jobs.begin(),
+                                                             _moved_jobs.end(),
+                                                             _first_rank,
+                                                             _last_rank);
+
+      if (check_reverse) {
+        std::swap(_moved_jobs[_s_edge_first], _moved_jobs[_s_edge_last]);
+
+        is_reverse_valid =
+          is_reverse_valid &&
+          _tw_s_route.is_valid_addition_for_tw(_input,
+                                               _delivery,
+                                               _moved_jobs.begin(),
+                                               _moved_jobs.end(),
+                                               _first_rank,
+                                               _last_rank);
+
+        std::swap(_moved_jobs[_s_edge_first], _moved_jobs[_s_edge_last]);
+      }
+
+      return is_normal_valid || is_reverse_valid;
+    },
+    [&] {
+      const bool reverse_s = utils::edge_swap_chosen_reverse(_normal_t_gain,
+                                                             _reversed_t_gain,
+                                                             is_normal_valid,
+                                                             is_reverse_valid);
+      if (!(reverse_s ? is_reverse_valid : is_normal_valid)) {
+        return false;
+      }
+      auto moved = _moved_jobs;
+      if (reverse_s) {
+        std::swap(moved[_s_edge_first], moved[_s_edge_last]);
+      }
+      std::vector<Index> route_after;
+      utils::build_one_route_after_moved_jobs(s_route,
+                                              _first_rank,
+                                              moved,
+                                              route_after);
+      return utils::route_jobs_within_max_duration_for_ls(_input,
+                                                           s_vehicle,
+                                                           route_after,
+                                                           &_tw_s_route);
+    },
+    [&] { cvrp::IntraOrOpt::compute_gain(); });
 }
 
 void IntraOrOpt::apply_wait_gain_adjustment() {
@@ -59,66 +126,7 @@ void IntraOrOpt::apply_wait_gain_adjustment() {
 }
 
 bool IntraOrOpt::is_valid() {
-  bool valid = cvrp::IntraOrOpt::is_valid();
-
-  if (valid) {
-    is_normal_valid = is_normal_valid &&
-                      _tw_s_route.is_valid_addition_for_tw(_input,
-                                                           _delivery,
-                                                           _moved_jobs.begin(),
-                                                           _moved_jobs.end(),
-                                                           _first_rank,
-                                                           _last_rank);
-
-    if (check_reverse) {
-      std::swap(_moved_jobs[_s_edge_first], _moved_jobs[_s_edge_last]);
-
-      is_reverse_valid =
-        is_reverse_valid &&
-        _tw_s_route.is_valid_addition_for_tw(_input,
-                                             _delivery,
-                                             _moved_jobs.begin(),
-                                             _moved_jobs.end(),
-                                             _first_rank,
-                                             _last_rank);
-
-      // Reset to initial situation before potential application.
-      std::swap(_moved_jobs[_s_edge_first], _moved_jobs[_s_edge_last]);
-    }
-
-    valid = (is_normal_valid || is_reverse_valid);
-  }
-
-  if (!valid) {
-    return false;
-  }
-
-  return utils::max_duration_feasible_for_ls(_input, [&] {
-                                               const bool reverse_s =
-                                                 utils::edge_swap_chosen_reverse(
-                                                   _normal_t_gain,
-                                                   _reversed_t_gain,
-                                                   is_normal_valid,
-                                                   is_reverse_valid);
-                                               if (!(reverse_s ? is_reverse_valid
-                                                                 : is_normal_valid)) {
-                                                 return false;
-                                               }
-                                               auto moved = _moved_jobs;
-                                               if (reverse_s) {
-                                                 std::swap(moved[_s_edge_first],
-                                                           moved[_s_edge_last]);
-                                               }
-                                               std::vector<Index> route_after;
-                                               utils::build_one_route_after_moved_jobs(
-                                                 s_route,
-                                                 _first_rank,
-                                                 moved,
-                                                 route_after);
-                                               return utils::
-                                                 route_jobs_within_max_duration_for_ls(
-                                                   _input, s_vehicle, route_after, &_tw_s_route);
-                                             });
+  return gain_computed && stored_gain != NO_GAIN;
 }
 
 void IntraOrOpt::apply() {

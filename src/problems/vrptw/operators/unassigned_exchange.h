@@ -32,6 +32,8 @@ public:
                      Index t_rank,
                      Index u);
 
+  bool prunable_by_travel_upper_bound(const Eval& current_best) override;
+
   bool is_valid() override;
 
   void apply() override;

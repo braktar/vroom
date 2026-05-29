@@ -9,6 +9,7 @@ All rights reserved (see LICENSE).
 
 #include "problems/vrptw/operators/or_opt.h"
 #include "utils/helpers.h"
+#include "utils/helpers_vrptw_ls.h"
 
 namespace vroom::vrptw {
 
@@ -32,20 +33,72 @@ OrOpt::OrOpt(const Input& input,
     _tw_t_route(tw_t_route) {
 }
 
-void OrOpt::compute_gain() {
-  set_wait_gain_upper_bound(
-    utils::wait_gain_upper_bound_from_routes(_input,
-                                             s_vehicle,
-                                             s_route,
-                                             &_tw_s_route,
-                                             t_vehicle,
-                                             t_route,
-                                             &_tw_t_route));
-
-  (void)gain_upper_bound();
-  cvrp::OrOpt::compute_gain();
+bool OrOpt::prunable_by_travel_upper_bound(const Eval& current_best) {
+  return utils::vrptw_ls::prunable_by_travel_upper_bound(
+    _input,
+    current_best,
+    gain_upper_bound(),
+    [&] {
+      return utils::wait_gain_upper_bound_from_routes(_input,
+                                                      s_vehicle,
+                                                      s_route,
+                                                      &_tw_s_route,
+                                                      t_vehicle,
+                                                      t_route,
+                                                      &_tw_t_route);
+    });
 }
 
+void OrOpt::compute_gain() {
+  if (!_gain_upper_bound_computed) {
+    (void)gain_upper_bound();
+  }
+
+  utils::vrptw_ls::run_edge_swap_compute_gain(
+    stored_gain,
+    gain_computed,
+    _input,
+    [&] {
+      return cvrp::OrOpt::is_valid() &&
+             _tw_s_route.is_valid_removal(_input, s_rank, 2);
+    },
+    [&] {
+      auto s_start = s_route.begin() + s_rank;
+      is_normal_valid =
+        is_normal_valid && _tw_t_route.is_valid_addition_for_tw(_input,
+                                                                edge_delivery,
+                                                                s_start,
+                                                                s_start + 2,
+                                                                t_rank,
+                                                                t_rank);
+      auto s_reverse_start = s_route.rbegin() + s_route.size() - 2 - s_rank;
+      is_reverse_valid = is_reverse_valid &&
+                         _tw_t_route.is_valid_addition_for_tw(_input,
+                                                              edge_delivery,
+                                                              s_reverse_start,
+                                                              s_reverse_start + 2,
+                                                              t_rank,
+                                                              t_rank);
+
+      return is_normal_valid || is_reverse_valid;
+    },
+    [&] {
+      return utils::or_opt_within_max_duration(_input,
+                                                 s_vehicle,
+                                                 s_route,
+                                                 s_rank,
+                                                 t_vehicle,
+                                                 t_route,
+                                                 t_rank,
+                                                 is_normal_valid,
+                                                 is_reverse_valid,
+                                                 _normal_t_gain,
+                                                 _reversed_t_gain,
+                                                 &_tw_s_route,
+                                                 &_tw_t_route);
+    },
+    [&] { cvrp::OrOpt::compute_gain(); });
+}
 
 void OrOpt::apply_wait_gain_adjustment() {
   if (wait_gain_adjusted || !gain_computed) {
@@ -67,52 +120,7 @@ void OrOpt::apply_wait_gain_adjustment() {
 }
 
 bool OrOpt::is_valid() {
-  bool valid =
-    cvrp::OrOpt::is_valid() && _tw_s_route.is_valid_removal(_input, s_rank, 2);
-
-  if (valid) {
-    // Keep edge direction.
-    auto s_start = s_route.begin() + s_rank;
-    is_normal_valid =
-      is_normal_valid && _tw_t_route.is_valid_addition_for_tw(_input,
-                                                              edge_delivery,
-                                                              s_start,
-                                                              s_start + 2,
-                                                              t_rank,
-                                                              t_rank);
-    // Reverse edge direction.
-    auto s_reverse_start = s_route.rbegin() + s_route.size() - 2 - s_rank;
-    is_reverse_valid = is_reverse_valid &&
-                       _tw_t_route.is_valid_addition_for_tw(_input,
-                                                            edge_delivery,
-                                                            s_reverse_start,
-                                                            s_reverse_start + 2,
-                                                            t_rank,
-                                                            t_rank);
-
-    valid = is_normal_valid || is_reverse_valid;
-  }
-
-  if (!valid) {
-    return false;
-  }
-
-  return utils::max_duration_feasible_for_ls(_input, [&] {
-                                               return utils::or_opt_within_max_duration(
-                                                 _input,
-                                                 s_vehicle,
-                                                 s_route,
-                                                 s_rank,
-                                                 t_vehicle,
-                                                 t_route,
-                                                 t_rank,
-                                                 is_normal_valid,
-                                                 is_reverse_valid,
-                                                 _normal_t_gain,
-                                                 _reversed_t_gain,
-                                                 &_tw_s_route,
-                                                 &_tw_t_route);
-                                             });
+  return gain_computed && stored_gain != NO_GAIN;
 }
 
 void OrOpt::apply() {

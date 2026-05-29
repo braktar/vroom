@@ -11,6 +11,7 @@ All rights reserved (see LICENSE).
 #include <algorithm>
 
 #include "utils/helpers.h"
+#include "utils/helpers_vrptw_ls.h"
 
 namespace vroom::vrptw {
 
@@ -33,12 +34,123 @@ IntraCrossExchange::IntraCrossExchange(const Input& input,
     _tw_s_route(tw_s_route) {
 }
 
-void IntraCrossExchange::compute_gain() {
-  set_wait_gain_upper_bound(utils::wait_gain_upper_bound_from_route(
-    _input, s_vehicle, s_route, &_tw_s_route));
+bool IntraCrossExchange::prunable_by_travel_upper_bound(const Eval& current_best) {
+  return utils::vrptw_ls::prunable_by_travel_upper_bound(
+    _input,
+    current_best,
+    gain_upper_bound(),
+    [&] {
+      return utils::wait_gain_upper_bound_from_route(_input,
+                                                     s_vehicle,
+                                                     s_route,
+                                                     &_tw_s_route);
+    });
+}
 
-  (void)gain_upper_bound();
-  cvrp::IntraCrossExchange::compute_gain();
+void IntraCrossExchange::compute_gain() {
+  if (!_gain_upper_bound_computed) {
+    (void)gain_upper_bound();
+  }
+
+  utils::vrptw_ls::run_edge_swap_compute_gain(
+    stored_gain,
+    gain_computed,
+    _input,
+    [&] { return cvrp::IntraCrossExchange::is_valid(); },
+    [&] {
+      s_normal_t_normal_is_valid =
+        s_normal_t_normal_is_valid &&
+        _tw_s_route.is_valid_addition_for_tw(_input,
+                                             _delivery,
+                                             _moved_jobs.begin(),
+                                             _moved_jobs.end(),
+                                             _first_rank,
+                                             _last_rank);
+
+      std::swap(_moved_jobs[0], _moved_jobs[1]);
+
+      if (check_t_reverse) {
+        s_normal_t_reverse_is_valid =
+          s_normal_t_reverse_is_valid &&
+          _tw_s_route.is_valid_addition_for_tw(_input,
+                                               _delivery,
+                                               _moved_jobs.begin(),
+                                               _moved_jobs.end(),
+                                               _first_rank,
+                                               _last_rank);
+      }
+
+      std::swap(_moved_jobs[_moved_jobs.size() - 2],
+                _moved_jobs[_moved_jobs.size() - 1]);
+
+      if (check_s_reverse && check_t_reverse) {
+        s_reverse_t_reverse_is_valid =
+          s_reverse_t_reverse_is_valid &&
+          _tw_s_route.is_valid_addition_for_tw(_input,
+                                               _delivery,
+                                               _moved_jobs.begin(),
+                                               _moved_jobs.end(),
+                                               _first_rank,
+                                               _last_rank);
+      }
+
+      std::swap(_moved_jobs[0], _moved_jobs[1]);
+
+      if (check_s_reverse) {
+        s_reverse_t_normal_is_valid =
+          s_reverse_t_normal_is_valid &&
+          _tw_s_route.is_valid_addition_for_tw(_input,
+                                               _delivery,
+                                               _moved_jobs.begin(),
+                                               _moved_jobs.end(),
+                                               _first_rank,
+                                               _last_rank);
+      }
+
+      std::swap(_moved_jobs[_moved_jobs.size() - 2],
+                _moved_jobs[_moved_jobs.size() - 1]);
+
+      return s_normal_t_normal_is_valid || s_normal_t_reverse_is_valid ||
+             s_reverse_t_reverse_is_valid || s_reverse_t_normal_is_valid;
+    },
+    [&] {
+      const auto [reverse_s, reverse_t] =
+        utils::intra_cross_exchange_chosen_reverse_edges(_normal_s_gain,
+                                                         _reversed_s_gain,
+                                                         _normal_t_gain,
+                                                         _reversed_t_gain,
+                                                         s_normal_t_normal_is_valid,
+                                                         s_normal_t_reverse_is_valid,
+                                                         s_reverse_t_normal_is_valid,
+                                                         s_reverse_t_reverse_is_valid);
+
+      const bool tw_ok = (reverse_s && reverse_t)
+                           ? s_reverse_t_reverse_is_valid
+                           : (reverse_s ? s_reverse_t_normal_is_valid
+                                        : (reverse_t ? s_normal_t_reverse_is_valid
+                                                     : s_normal_t_normal_is_valid));
+      if (!tw_ok) {
+        return false;
+      }
+
+      auto moved = _moved_jobs;
+      if (reverse_t) {
+        std::swap(moved[0], moved[1]);
+      }
+      if (reverse_s) {
+        std::swap(moved[moved.size() - 2], moved[moved.size() - 1]);
+      }
+      std::vector<Index> route_after;
+      utils::build_one_route_after_moved_jobs(s_route,
+                                              _first_rank,
+                                              moved,
+                                              route_after);
+      return utils::route_jobs_within_max_duration_for_ls(_input,
+                                                         s_vehicle,
+                                                         route_after,
+                                                         &_tw_s_route);
+    },
+    [&] { cvrp::IntraCrossExchange::compute_gain(); });
 }
 
 void IntraCrossExchange::apply_wait_gain_adjustment() {
@@ -64,112 +176,7 @@ void IntraCrossExchange::apply_wait_gain_adjustment() {
 }
 
 bool IntraCrossExchange::is_valid() {
-  bool valid = cvrp::IntraCrossExchange::is_valid();
-
-  if (valid) {
-    s_normal_t_normal_is_valid =
-      s_normal_t_normal_is_valid &&
-      _tw_s_route.is_valid_addition_for_tw(_input,
-                                           _delivery,
-                                           _moved_jobs.begin(),
-                                           _moved_jobs.end(),
-                                           _first_rank,
-                                           _last_rank);
-
-    std::swap(_moved_jobs[0], _moved_jobs[1]);
-
-    if (check_t_reverse) {
-      s_normal_t_reverse_is_valid =
-        s_normal_t_reverse_is_valid &&
-        _tw_s_route.is_valid_addition_for_tw(_input,
-                                             _delivery,
-                                             _moved_jobs.begin(),
-                                             _moved_jobs.end(),
-                                             _first_rank,
-                                             _last_rank);
-    }
-
-    std::swap(_moved_jobs[_moved_jobs.size() - 2],
-              _moved_jobs[_moved_jobs.size() - 1]);
-
-    if (check_s_reverse && check_t_reverse) {
-      s_reverse_t_reverse_is_valid =
-        s_reverse_t_reverse_is_valid &&
-        _tw_s_route.is_valid_addition_for_tw(_input,
-                                             _delivery,
-                                             _moved_jobs.begin(),
-                                             _moved_jobs.end(),
-                                             _first_rank,
-                                             _last_rank);
-    }
-
-    std::swap(_moved_jobs[0], _moved_jobs[1]);
-
-    if (check_s_reverse) {
-      s_reverse_t_normal_is_valid =
-        s_reverse_t_normal_is_valid &&
-        _tw_s_route.is_valid_addition_for_tw(_input,
-                                             _delivery,
-                                             _moved_jobs.begin(),
-                                             _moved_jobs.end(),
-                                             _first_rank,
-                                             _last_rank);
-    }
-
-    // Reset to initial situation before potential application.
-    std::swap(_moved_jobs[_moved_jobs.size() - 2],
-              _moved_jobs[_moved_jobs.size() - 1]);
-
-    valid = s_normal_t_normal_is_valid || s_normal_t_reverse_is_valid ||
-            s_reverse_t_reverse_is_valid || s_reverse_t_normal_is_valid;
-  }
-
-  if (!valid) {
-    return false;
-  }
-
-  return utils::max_duration_feasible_for_ls(_input, [&] {
-                                               const auto [reverse_s, reverse_t] =
-                                                 utils::intra_cross_exchange_chosen_reverse_edges(
-                                                   _normal_s_gain,
-                                                   _reversed_s_gain,
-                                                   _normal_t_gain,
-                                                   _reversed_t_gain,
-                                                   s_normal_t_normal_is_valid,
-                                                   s_normal_t_reverse_is_valid,
-                                                   s_reverse_t_normal_is_valid,
-                                                   s_reverse_t_reverse_is_valid);
-
-                                               const bool tw_ok =
-                                                 (reverse_s && reverse_t)
-                                                   ? s_reverse_t_reverse_is_valid
-                                                   : (reverse_s
-                                                        ? s_reverse_t_normal_is_valid
-                                                        : (reverse_t
-                                                             ? s_normal_t_reverse_is_valid
-                                                             : s_normal_t_normal_is_valid));
-                                               if (!tw_ok) {
-                                                 return false;
-                                               }
-
-                                               auto moved = _moved_jobs;
-                                               if (reverse_t) {
-                                                 std::swap(moved[0], moved[1]);
-                                               }
-                                               if (reverse_s) {
-                                                 std::swap(moved[moved.size() - 2],
-                                                           moved[moved.size() - 1]);
-                                               }
-                                               std::vector<Index> route_after;
-                                               utils::build_one_route_after_moved_jobs(
-                                                 s_route,
-                                                 _first_rank,
-                                                 moved,
-                                                 route_after);
-                                               return utils::
-                                                 route_jobs_within_max_duration_for_ls(
-                                                   _input, s_vehicle, route_after, &_tw_s_route);
-                                             });
+  return gain_computed && stored_gain != NO_GAIN;
 }
 
 void IntraCrossExchange::apply() {

@@ -36,9 +36,6 @@ PriorityReplace::PriorityReplace(const Input& input,
 }
 
 void PriorityReplace::compute_gain() {
-  set_wait_gain_upper_bound(utils::wait_gain_upper_bound_from_route(
-    _input, s_vehicle, s_route, &_tw_s_route));
-
   cvrp::PriorityReplace::compute_gain();
   if (!gain_computed) {
     return;

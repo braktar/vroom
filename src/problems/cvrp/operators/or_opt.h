@@ -15,10 +15,8 @@ All rights reserved (see LICENSE).
 namespace vroom::cvrp {
 
 class OrOpt : public ls::Operator {
-private:
-  bool _gain_upper_bound_computed{false};
-
 protected:
+  bool _gain_upper_bound_computed{false};
   Eval _normal_t_gain;
   Eval _reversed_t_gain;
   bool reverse_s_edge{false};

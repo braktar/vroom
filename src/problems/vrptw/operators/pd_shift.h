@@ -37,6 +37,8 @@ public:
           Index t_vehicle,
           const Eval& gain_threshold);
 
+  bool prunable_by_travel_upper_bound(const Eval& current_best) override;
+
   void log_route(const std::vector<Index>& route) const;
 
   void apply() override;

@@ -32,19 +32,32 @@ TwoOpt::TwoOpt(const Input& input,
     _tw_t_route(tw_t_route) {
 }
 
-void TwoOpt::compute_gain() {
-  utils::vrptw_ls::run_compute_gain(
+bool TwoOpt::prunable_by_travel_upper_bound(const Eval& current_best) {
+  const Eval travel_ub = utils::vrptw_ls::two_opt_travel_upper_bound(_input,
+                                                                    _sol_state,
+                                                                    source,
+                                                                    s_vehicle,
+                                                                    s_rank,
+                                                                    target,
+                                                                    t_vehicle,
+                                                                    t_rank);
+  return utils::vrptw_ls::prunable_by_travel_upper_bound(
+    _input,
+    current_best,
+    travel_ub,
     [&] {
-      set_wait_gain_upper_bound(
-        utils::wait_gain_upper_bound_from_routes(_input,
-                                                 s_vehicle,
-                                                 s_route,
-                                                 &_tw_s_route,
-                                                 t_vehicle,
-                                                 t_route,
-                                                 &_tw_t_route));
-    },
-    [&] { cvrp::TwoOpt::compute_gain(); });
+      return utils::wait_gain_upper_bound_from_routes(_input,
+                                                      s_vehicle,
+                                                      s_route,
+                                                      &_tw_s_route,
+                                                      t_vehicle,
+                                                      t_route,
+                                                      &_tw_t_route);
+    });
+}
+
+void TwoOpt::compute_gain() {
+  utils::vrptw_ls::run_travel_compute_gain([&] { cvrp::TwoOpt::compute_gain(); });
 }
 
 void TwoOpt::apply_wait_gain_adjustment() {

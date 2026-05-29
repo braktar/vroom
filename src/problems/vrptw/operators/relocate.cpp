@@ -32,19 +32,32 @@ Relocate::Relocate(const Input& input,
     _tw_t_route(tw_t_route) {
 }
 
-void Relocate::compute_gain() {
-  utils::vrptw_ls::run_compute_gain(
+bool Relocate::prunable_by_travel_upper_bound(const Eval& current_best) {
+  const Eval travel_ub = utils::vrptw_ls::relocate_travel_upper_bound(_input,
+                                                                      _sol_state,
+                                                                      s_route,
+                                                                      s_vehicle,
+                                                                      s_rank,
+                                                                      t_route,
+                                                                      t_vehicle,
+                                                                      t_rank);
+  return utils::vrptw_ls::prunable_by_travel_upper_bound(
+    _input,
+    current_best,
+    travel_ub,
     [&] {
-      set_wait_gain_upper_bound(
-        utils::wait_gain_upper_bound_from_routes(_input,
-                                                 s_vehicle,
-                                                 s_route,
-                                                 &_tw_s_route,
-                                                 t_vehicle,
-                                                 t_route,
-                                                 &_tw_t_route));
-    },
-    [&] { cvrp::Relocate::compute_gain(); });
+      return utils::wait_gain_upper_bound_from_routes(_input,
+                                                      s_vehicle,
+                                                      s_route,
+                                                      &_tw_s_route,
+                                                      t_vehicle,
+                                                      t_route,
+                                                      &_tw_t_route);
+    });
+}
+
+void Relocate::compute_gain() {
+  utils::vrptw_ls::run_travel_compute_gain([&] { cvrp::Relocate::compute_gain(); });
 }
 
 void Relocate::apply_wait_gain_adjustment() {

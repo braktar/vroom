@@ -9,6 +9,7 @@ All rights reserved (see LICENSE).
 
 #include "problems/vrptw/operators/route_split.h"
 #include "utils/helpers.h"
+#include "utils/helpers_vrptw_ls.h"
 
 namespace vroom::vrptw {
 
@@ -28,6 +29,19 @@ RouteSplit::RouteSplit(const Input& input,
                      best_known_gain),
     _tw_s_route(tw_s_route),
     _tw_sol(sol) {
+}
+
+bool RouteSplit::prunable_by_travel_upper_bound(const Eval& current_best) {
+  return utils::vrptw_ls::prunable_by_travel_upper_bound(
+    _input,
+    current_best,
+    _best_known_gain,
+    [&] {
+      return utils::wait_gain_upper_bound_from_route(_input,
+                                                     s_vehicle,
+                                                     s_route,
+                                                     &_tw_s_route);
+    });
 }
 
 void RouteSplit::compute_gain() {

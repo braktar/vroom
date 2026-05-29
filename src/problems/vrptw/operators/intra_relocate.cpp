@@ -27,12 +27,23 @@ IntraRelocate::IntraRelocate(const Input& input,
     _tw_s_route(tw_s_route) {
 }
 
-void IntraRelocate::compute_gain() {
-  utils::vrptw_ls::run_compute_gain(
+bool IntraRelocate::prunable_by_travel_upper_bound(const Eval& current_best) {
+  const Eval travel_ub = utils::vrptw_ls::intra_relocate_travel_upper_bound(
+    _input, _sol_state, s_route, s_vehicle, s_rank, t_route, t_rank);
+  return utils::vrptw_ls::prunable_by_travel_upper_bound(
+    _input,
+    current_best,
+    travel_ub,
     [&] {
-      set_wait_gain_upper_bound(utils::wait_gain_upper_bound_from_route(
-        _input, s_vehicle, s_route, &_tw_s_route));
-    },
+      return utils::wait_gain_upper_bound_from_route(_input,
+                                                     s_vehicle,
+                                                     s_route,
+                                                     &_tw_s_route);
+    });
+}
+
+void IntraRelocate::compute_gain() {
+  utils::vrptw_ls::run_travel_compute_gain(
     [&] { cvrp::IntraRelocate::compute_gain(); });
 }
 void IntraRelocate::apply_wait_gain_adjustment() {

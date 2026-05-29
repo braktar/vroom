@@ -2121,4 +2121,178 @@ Solution format_solution(const Input& input, const TWSolution& tw_routes) {
                   get_unassigned_jobs_from_ranks(input, unassigned_ranks));
 }
 
+namespace vrptw_ls {
+
+Eval relocate_travel_upper_bound(const Input& input,
+                                 const utils::SolutionState& sol_state,
+                                 const std::vector<Index>& s_route,
+                                 Index s_vehicle,
+                                 Index s_rank,
+                                 const std::vector<Index>& t_route,
+                                 Index t_vehicle,
+                                 Index t_rank) {
+  Eval s_gain = sol_state.node_gains[s_vehicle][s_rank];
+  if (s_route.size() == 1) {
+    s_gain.cost += input.vehicles[s_vehicle].fixed_cost();
+  }
+
+  const auto& t_v = input.vehicles[t_vehicle];
+  Eval t_gain =
+    -addition_eval(input, s_route[s_rank], t_v, t_route, t_rank);
+  if (t_route.empty()) {
+    t_gain.cost -= t_v.fixed_cost();
+  }
+
+  return s_gain + t_gain;
+}
+
+Eval two_opt_travel_upper_bound(const Input& input,
+                                const utils::SolutionState& sol_state,
+                                RawRoute& source,
+                                Index /*s_vehicle*/,
+                                Index s_rank,
+                                RawRoute& target,
+                                Index /*t_vehicle*/,
+                                Index t_rank) {
+  Eval s_gain =
+    (t_rank + 1u < target.route.size())
+      ? std::get<0>(addition_eval_delta(input,
+                                        sol_state,
+                                        source,
+                                        s_rank + 1,
+                                        source.route.size(),
+                                        target,
+                                        t_rank + 1,
+                                        target.route.size()))
+      : removal_gain(input, sol_state, source, s_rank + 1, source.route.size());
+
+  Eval t_gain =
+    (s_rank + 1u < source.route.size())
+      ? std::get<0>(addition_eval_delta(input,
+                                        sol_state,
+                                        target,
+                                        t_rank + 1,
+                                        target.route.size(),
+                                        source,
+                                        s_rank + 1,
+                                        source.route.size()))
+      : removal_gain(input, sol_state, target, t_rank + 1, target.route.size());
+
+  return s_gain + t_gain;
+}
+
+Eval reverse_two_opt_travel_upper_bound(const Input& input,
+                                        const utils::SolutionState& sol_state,
+                                        RawRoute& source,
+                                        Index /*s_vehicle*/,
+                                        Index s_rank,
+                                        RawRoute& target,
+                                        Index /*t_vehicle*/,
+                                        Index t_rank) {
+  Eval s_gain = std::get<1>(addition_eval_delta(input,
+                                                sol_state,
+                                                source,
+                                                s_rank + 1,
+                                                source.route.size(),
+                                                target,
+                                                0,
+                                                t_rank + 1));
+
+  Eval t_gain =
+    (s_rank + 1u < source.route.size())
+      ? std::get<1>(addition_eval_delta(input,
+                                        sol_state,
+                                        target,
+                                        0,
+                                        t_rank + 1,
+                                        source,
+                                        s_rank + 1,
+                                        source.route.size()))
+      : removal_gain(input, sol_state, target, 0, t_rank + 1);
+
+  return s_gain + t_gain;
+}
+
+Eval route_exchange_travel_upper_bound(const Input& input,
+                                       const utils::SolutionState& sol_state,
+                                       RawRoute& source,
+                                       Index s_vehicle,
+                                       RawRoute& target,
+                                       Index /*t_vehicle*/) {
+  Eval s_gain =
+    target.route.empty()
+      ? sol_state.route_evals[s_vehicle]
+      : std::get<0>(addition_eval_delta(input,
+                                        sol_state,
+                                        source,
+                                        0,
+                                        source.route.size(),
+                                        target,
+                                        0,
+                                        target.route.size()));
+
+  Eval t_gain =
+    source.route.empty()
+      ? sol_state.route_evals[s_vehicle]
+      : std::get<0>(addition_eval_delta(input,
+                                        sol_state,
+                                        target,
+                                        0,
+                                        target.route.size(),
+                                        source,
+                                        0,
+                                        source.route.size()));
+
+  return s_gain + t_gain;
+}
+
+Eval intra_relocate_travel_upper_bound(const Input& input,
+                                       const utils::SolutionState& sol_state,
+                                       const std::vector<Index>& s_route,
+                                       Index s_vehicle,
+                                       Index s_rank,
+                                       const std::vector<Index>& t_route,
+                                       Index t_rank) {
+  const auto& v_target = input.vehicles[s_vehicle];
+  auto new_rank = t_rank;
+  if (s_rank < t_rank) {
+    ++new_rank;
+  }
+  return sol_state.node_gains[s_vehicle][s_rank] -
+         addition_eval(input, s_route[s_rank], v_target, t_route, new_rank);
+}
+
+Eval intra_exchange_travel_upper_bound(const Input& input,
+                                       const utils::SolutionState& sol_state,
+                                       const std::vector<Index>& s_route,
+                                       Index s_vehicle,
+                                       Index s_rank,
+                                       Index t_rank) {
+  const auto& v = input.vehicles[s_vehicle];
+  const Eval s_gain =
+    sol_state.node_gains[s_vehicle][s_rank] -
+    in_place_delta_eval(input, s_route[t_rank], v, s_route, s_rank);
+  const Eval t_gain =
+    sol_state.node_gains[s_vehicle][t_rank] -
+    in_place_delta_eval(input, s_route[s_rank], v, s_route, t_rank);
+  return s_gain + t_gain;
+}
+
+Eval intra_two_opt_travel_upper_bound(const Input& input,
+                                      const utils::SolutionState& sol_state,
+                                      RawRoute& source,
+                                      Index s_rank,
+                                      Index t_rank) {
+  return std::get<1>(addition_eval_delta(input,
+                                         sol_state,
+                                         source,
+                                         s_rank,
+                                         t_rank + 1,
+                                         source,
+                                         s_rank,
+                                         t_rank + 1));
+}
+
+} // namespace vrptw_ls
+
 } // namespace vroom::utils

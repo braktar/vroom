@@ -10,6 +10,7 @@ All rights reserved (see LICENSE).
 #include "problems/vrptw/operators/pd_shift.h"
 #include "algorithms/local_search/insertion_search.h"
 #include "utils/helpers.h"
+#include "utils/helpers_vrptw_ls.h"
 
 namespace vroom::vrptw {
 
@@ -33,6 +34,33 @@ PDShift::PDShift(const Input& input,
                   gain_threshold),
     _tw_s_route(tw_s_route),
     _tw_t_route(tw_t_route) {
+}
+
+bool PDShift::prunable_by_travel_upper_bound(const Eval& current_best) {
+  if (const auto delivery_between_pd =
+        _tw_s_route.delivery_in_range(_s_p_rank + 1, _s_d_rank);
+      !_tw_s_route.is_valid_addition_for_tw(_input,
+                                            delivery_between_pd,
+                                            s_route.begin() + _s_p_rank + 1,
+                                            s_route.begin() + _s_d_rank,
+                                            _s_p_rank,
+                                            _s_d_rank + 1)) {
+    return true;
+  }
+
+  return utils::vrptw_ls::prunable_by_travel_upper_bound(
+    _input,
+    current_best,
+    s_gain,
+    [&] {
+      return utils::wait_gain_upper_bound_from_routes(_input,
+                                                      s_vehicle,
+                                                      s_route,
+                                                      &_tw_s_route,
+                                                      t_vehicle,
+                                                      t_route,
+                                                      &_tw_t_route);
+    });
 }
 
 void PDShift::compute_gain() {
@@ -84,15 +112,6 @@ void PDShift::compute_gain() {
     t_new.insert(t_new.end(),
                  t_route.begin() + static_cast<std::ptrdiff_t>(_best_t_d_rank),
                  t_route.end());
-
-    set_wait_gain_upper_bound(
-      utils::wait_gain_upper_bound_from_routes(_input,
-                                               s_vehicle,
-                                               s_route,
-                                               &_tw_s_route,
-                                               t_vehicle,
-                                               t_route,
-                                               &_tw_t_route));
 
     if (_input.has_bounded_max_duration() &&
         !utils::routes_within_max_duration_for_ls(_input,

@@ -85,6 +85,9 @@ public:
   // Travel/capacity gain only (no wait adjustment); used before is_valid in LS.
   void ensure_travel_gain_computed();
 
+  // When true, travel upper bound cannot beat current_best (skip compute_gain).
+  virtual bool prunable_by_travel_upper_bound(const Eval& current_best);
+
   bool is_gain_computed() const {
     return gain_computed;
   }

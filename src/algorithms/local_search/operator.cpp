@@ -37,6 +37,11 @@ void Operator::ensure_travel_gain_computed() {
   }
 }
 
+bool Operator::prunable_by_travel_upper_bound(const Eval& current_best) {
+  (void)current_best;
+  return false;
+}
+
 Eval Operator::gain() {
   ensure_travel_gain_computed();
   apply_wait_gain_adjustment();

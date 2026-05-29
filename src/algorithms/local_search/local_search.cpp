@@ -39,6 +39,9 @@ namespace {
 template <class Op>
 bool operator_beats_current_best(Op& op, const Eval& current_best) {
   op.set_best_known_threshold(current_best);
+  if (op.prunable_by_travel_upper_bound(current_best)) {
+    return false;
+  }
   op.ensure_travel_gain_computed();
   if (!(current_best < op.current_gain())) {
     return false;

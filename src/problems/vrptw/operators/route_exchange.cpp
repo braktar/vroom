@@ -30,18 +30,26 @@ RouteExchange::RouteExchange(const Input& input,
     _target_job_deliveries_sum(target.job_deliveries_sum()) {
 }
 
-void RouteExchange::compute_gain() {
-  utils::vrptw_ls::run_compute_gain(
+bool RouteExchange::prunable_by_travel_upper_bound(const Eval& current_best) {
+  const Eval travel_ub = utils::vrptw_ls::route_exchange_travel_upper_bound(
+    _input, _sol_state, source, s_vehicle, target, t_vehicle);
+  return utils::vrptw_ls::prunable_by_travel_upper_bound(
+    _input,
+    current_best,
+    travel_ub,
     [&] {
-      set_wait_gain_upper_bound(
-        utils::wait_gain_upper_bound_from_routes(_input,
-                                                 s_vehicle,
-                                                 s_route,
-                                                 &_tw_s_route,
-                                                 t_vehicle,
-                                                 t_route,
-                                                 &_tw_t_route));
-    },
+      return utils::wait_gain_upper_bound_from_routes(_input,
+                                                      s_vehicle,
+                                                      s_route,
+                                                      &_tw_s_route,
+                                                      t_vehicle,
+                                                      t_route,
+                                                      &_tw_t_route);
+    });
+}
+
+void RouteExchange::compute_gain() {
+  utils::vrptw_ls::run_travel_compute_gain(
     [&] { cvrp::RouteExchange::compute_gain(); });
 }
 void RouteExchange::apply_wait_gain_adjustment() {

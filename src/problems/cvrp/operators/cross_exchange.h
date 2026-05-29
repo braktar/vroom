@@ -15,10 +15,8 @@ All rights reserved (see LICENSE).
 namespace vroom::cvrp {
 
 class CrossExchange : public ls::Operator {
-private:
-  bool _gain_upper_bound_computed{false};
-
 protected:
+  bool _gain_upper_bound_computed{false};
   Eval _normal_s_gain;
   Eval _reversed_s_gain{NO_GAIN};
   Eval _normal_t_gain;
