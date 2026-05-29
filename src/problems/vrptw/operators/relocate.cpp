@@ -44,20 +44,25 @@ void Relocate::compute_gain() {
                                                  t_route,
                                                  &_tw_t_route));
     },
-    [&] { cvrp::Relocate::compute_gain(); },
-    [&] {
-      utils::adjust_relocate_wait_gain(_input,
-                                       stored_gain,
-                                       s_vehicle,
-                                       s_route,
-                                       s_rank,
-                                       t_vehicle,
-                                       t_route,
-                                       t_rank,
-                                       &_tw_s_route,
-                                       &_tw_t_route,
-                                       best_known_threshold);
-    });
+    [&] { cvrp::Relocate::compute_gain(); });
+}
+
+void Relocate::apply_wait_gain_adjustment() {
+  if (wait_gain_adjusted || !gain_computed) {
+    return;
+  }
+  utils::adjust_relocate_wait_gain(_input,
+                                   stored_gain,
+                                   s_vehicle,
+                                   s_route,
+                                   s_rank,
+                                   t_vehicle,
+                                   t_route,
+                                   t_rank,
+                                   &_tw_s_route,
+                                   &_tw_t_route,
+                                   best_known_threshold);
+  wait_gain_adjusted = true;
 }
 
 bool Relocate::is_valid() {

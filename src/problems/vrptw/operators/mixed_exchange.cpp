@@ -44,8 +44,15 @@ void MixedExchange::compute_gain() {
                                              t_route,
                                              &_tw_t_route));
 
+  (void)gain_upper_bound();
   cvrp::MixedExchange::compute_gain();
+}
 
+
+void MixedExchange::apply_wait_gain_adjustment() {
+  if (wait_gain_adjusted || !gain_computed) {
+    return;
+  }
   utils::adjust_mixed_exchange_wait_gain(_input,
                                          stored_gain,
                                          s_vehicle,
@@ -58,6 +65,7 @@ void MixedExchange::compute_gain() {
                                          &_tw_s_route,
                                          &_tw_t_route,
                                          best_known_threshold);
+  wait_gain_adjusted = true;
 }
 
 bool MixedExchange::is_valid() {

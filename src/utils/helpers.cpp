@@ -853,6 +853,9 @@ bool route_jobs_within_max_duration_for_ls(const Input& input,
   }
 
   if (tw_live != nullptr && tw_live->v_rank == vehicle_rank) {
+    if (jobs == tw_live->route) {
+      return true;
+    }
     auto& scratch = ls_tw_eval_scratch_route(input, vehicle_rank);
     scratch = *tw_live;
     return tw_route_rebuild_and_within_max_duration(input, scratch, jobs);
@@ -1199,6 +1202,9 @@ void adjust_stored_gain_for_wait_approx_two_routes(
   if (veh1.costs.per_wait_hour == 0 && veh2.costs.per_wait_hour == 0) {
     return;
   }
+  if (r1_old == r1_new && r2_old == r2_new) {
+    return;
+  }
 
   const auto wait_ub = wait_gain_upper_bound_from_routes(input,
                                                          v1,
@@ -1257,6 +1263,9 @@ void adjust_stored_gain_for_wait_approx_one_route(const Input& input,
                                                   Eval best_known) {
   const auto& veh = input.vehicles[v];
   if (veh.costs.per_wait_hour == 0) {
+    return;
+  }
+  if (r_old == r_new) {
     return;
   }
 

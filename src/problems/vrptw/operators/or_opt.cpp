@@ -42,8 +42,15 @@ void OrOpt::compute_gain() {
                                              t_route,
                                              &_tw_t_route));
 
+  (void)gain_upper_bound();
   cvrp::OrOpt::compute_gain();
+}
 
+
+void OrOpt::apply_wait_gain_adjustment() {
+  if (wait_gain_adjusted || !gain_computed) {
+    return;
+  }
   utils::adjust_or_opt_wait_gain(_input,
                                  stored_gain,
                                  s_vehicle,
@@ -56,6 +63,7 @@ void OrOpt::compute_gain() {
                                  &_tw_s_route,
                                  &_tw_t_route,
                                  best_known_threshold);
+  wait_gain_adjusted = true;
 }
 
 bool OrOpt::is_valid() {

@@ -33,8 +33,13 @@ void IntraExchange::compute_gain() {
       set_wait_gain_upper_bound(utils::wait_gain_upper_bound_from_route(
         _input, s_vehicle, s_route, &_tw_s_route));
     },
-    [&] { cvrp::IntraExchange::compute_gain(); },
-    [&] {
+    [&] { cvrp::IntraExchange::compute_gain(); });
+}
+void IntraExchange::apply_wait_gain_adjustment() {
+  if (wait_gain_adjusted || !gain_computed) {
+    return;
+  }
+
       utils::adjust_one_route_moved_jobs_wait_gain(_input,
                                                    stored_gain,
                                                    s_vehicle,
@@ -43,8 +48,9 @@ void IntraExchange::compute_gain() {
                                                    _moved_jobs,
                                                    &_tw_s_route,
                                                    best_known_threshold);
-    });
+      wait_gain_adjusted = true;
 }
+
 
 bool IntraExchange::is_valid() {
   return utils::vrptw_ls::is_valid(

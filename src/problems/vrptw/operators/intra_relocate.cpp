@@ -33,8 +33,13 @@ void IntraRelocate::compute_gain() {
       set_wait_gain_upper_bound(utils::wait_gain_upper_bound_from_route(
         _input, s_vehicle, s_route, &_tw_s_route));
     },
-    [&] { cvrp::IntraRelocate::compute_gain(); },
-    [&] {
+    [&] { cvrp::IntraRelocate::compute_gain(); });
+}
+void IntraRelocate::apply_wait_gain_adjustment() {
+  if (wait_gain_adjusted || !gain_computed) {
+    return;
+  }
+
       std::vector<Index> nr;
       utils::build_intra_relocate_post_route(s_route, s_rank, t_rank, nr);
       utils::adjust_stored_gain_for_wait_approx_one_route(_input,
@@ -44,8 +49,9 @@ void IntraRelocate::compute_gain() {
                                                           nr,
                                                           &_tw_s_route,
                                                           best_known_threshold);
-    });
+      wait_gain_adjusted = true;
 }
+
 
 bool IntraRelocate::is_valid() {
   return utils::vrptw_ls::is_valid(

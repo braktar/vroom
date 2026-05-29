@@ -97,6 +97,18 @@ void SwapStar::compute_gain() {
     auto nt = t_route;
     apply_swap_star_to_copies(ns, nt, choice);
 
+  }
+  gain_computed = true;
+}
+
+
+void SwapStar::apply_wait_gain_adjustment() {
+  if (wait_gain_adjusted || !gain_computed || choice.gain.cost <= 0) {
+    return;
+  }
+  auto ns = s_route;
+  auto nt = t_route;
+  apply_swap_star_to_copies(ns, nt, choice);
     utils::adjust_stored_gain_for_wait_approx_two_routes(_input,
                                                          stored_gain,
                                                          s_vehicle,
@@ -108,8 +120,7 @@ void SwapStar::compute_gain() {
                                                          &_tw_s_route,
                                                          &_tw_t_route,
                                                          best_known_threshold);
-  }
-  gain_computed = true;
+  wait_gain_adjusted = true;
 }
 
 bool SwapStar::is_valid() {

@@ -42,8 +42,13 @@ void RouteExchange::compute_gain() {
                                                  t_route,
                                                  &_tw_t_route));
     },
-    [&] { cvrp::RouteExchange::compute_gain(); },
-    [&] {
+    [&] { cvrp::RouteExchange::compute_gain(); });
+}
+void RouteExchange::apply_wait_gain_adjustment() {
+  if (wait_gain_adjusted || !gain_computed) {
+    return;
+  }
+
       utils::adjust_route_exchange_wait_gain(_input,
                                              stored_gain,
                                              s_vehicle,
@@ -53,8 +58,9 @@ void RouteExchange::compute_gain() {
                                              &_tw_s_route,
                                              &_tw_t_route,
                                              best_known_threshold);
-    });
+      wait_gain_adjusted = true;
 }
+
 
 bool RouteExchange::is_valid() {
   return utils::vrptw_ls::is_valid(

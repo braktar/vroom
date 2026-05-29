@@ -14,14 +14,11 @@ All rights reserved (see LICENSE).
 
 namespace vroom::utils::vrptw_ls {
 
-// Run cvrp::compute_gain between wait bound setup and wait-adjusted stored_gain.
-template <typename SetUb, typename CvrpComputeGain, typename AdjustGain>
-void run_compute_gain(SetUb&& set_ub,
-                    CvrpComputeGain&& cvrp_compute_gain,
-                    AdjustGain&& adjust_gain) {
+// Travel/capacity gain only; wait adjustment runs in apply_wait_gain_adjustment().
+template <typename SetUb, typename CvrpComputeGain>
+void run_compute_gain(SetUb&& set_ub, CvrpComputeGain&& cvrp_compute_gain) {
   set_ub();
   cvrp_compute_gain();
-  adjust_gain();
 }
 
 // TW feasibility then max_duration on post-move job sequences (if bounded).

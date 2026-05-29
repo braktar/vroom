@@ -34,6 +34,7 @@ protected:
   const Index t_rank;
 
   bool gain_computed{false};
+  bool wait_gain_adjusted{false};
   Eval s_gain;
   Eval t_gain;
   Eval stored_gain;
@@ -42,6 +43,10 @@ protected:
   Eval best_known_threshold{NO_EVAL};
 
   virtual void compute_gain() = 0;
+
+  // VRPTW: per_wait_hour adjustment; default no-op for CVRP operators.
+  virtual void apply_wait_gain_adjustment() {
+  }
 
   bool is_valid_for_source_range_bounds() const;
 
@@ -76,6 +81,17 @@ public:
   OperatorName get_name() const;
 
   virtual Eval gain();
+
+  // Travel/capacity gain only (no wait adjustment); used before is_valid in LS.
+  void ensure_travel_gain_computed();
+
+  bool is_gain_computed() const {
+    return gain_computed;
+  }
+
+  const Eval& current_gain() const {
+    return stored_gain;
+  }
 
   void set_best_known_threshold(Eval threshold);
 

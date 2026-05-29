@@ -35,8 +35,14 @@ void IntraOrOpt::compute_gain() {
   set_wait_gain_upper_bound(utils::wait_gain_upper_bound_from_route(
     _input, s_vehicle, s_route, &_tw_s_route));
 
+  (void)gain_upper_bound();
   cvrp::IntraOrOpt::compute_gain();
+}
 
+void IntraOrOpt::apply_wait_gain_adjustment() {
+  if (wait_gain_adjusted || !gain_computed) {
+    return;
+  }
   auto moved = _moved_jobs;
   if (reverse_s_edge) {
     std::swap(moved[_s_edge_first], moved[_s_edge_last]);
@@ -49,6 +55,7 @@ void IntraOrOpt::compute_gain() {
                                                moved,
                                                &_tw_s_route,
                                                best_known_threshold);
+  wait_gain_adjusted = true;
 }
 
 bool IntraOrOpt::is_valid() {

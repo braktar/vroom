@@ -44,8 +44,13 @@ void ReverseTwoOpt::compute_gain() {
                                                  t_route,
                                                  &_tw_t_route));
     },
-    [&] { cvrp::ReverseTwoOpt::compute_gain(); },
-    [&] {
+    [&] { cvrp::ReverseTwoOpt::compute_gain(); });
+}
+void ReverseTwoOpt::apply_wait_gain_adjustment() {
+  if (wait_gain_adjusted || !gain_computed) {
+    return;
+  }
+
       utils::adjust_reverse_two_opt_wait_gain(_input,
                                               stored_gain,
                                               s_vehicle,
@@ -57,8 +62,9 @@ void ReverseTwoOpt::compute_gain() {
                                               &_tw_s_route,
                                               &_tw_t_route,
                                               best_known_threshold);
-    });
+      wait_gain_adjusted = true;
 }
+
 
 bool ReverseTwoOpt::is_valid() {
   return utils::vrptw_ls::is_valid(

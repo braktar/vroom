@@ -105,20 +105,29 @@ void PDShift::compute_gain() {
       _valid = false;
       stored_gain = NO_GAIN;
     } else {
-      utils::adjust_stored_gain_for_wait_approx_two_routes(_input,
-                                                           stored_gain,
-                                                           s_vehicle,
-                                                           s_route,
-                                                           s_new,
-                                                           t_vehicle,
-                                                           t_route,
-                                                           t_new,
-                                                           &_tw_s_route,
-                                                           &_tw_t_route,
-                                                           best_known_threshold);
+      _wait_s_new = std::move(s_new);
+      _wait_t_new = std::move(t_new);
     }
   }
   gain_computed = true;
+}
+
+void PDShift::apply_wait_gain_adjustment() {
+  if (wait_gain_adjusted || !gain_computed || !_valid) {
+    return;
+  }
+  utils::adjust_stored_gain_for_wait_approx_two_routes(_input,
+                                                       stored_gain,
+                                                       s_vehicle,
+                                                       s_route,
+                                                       _wait_s_new,
+                                                       t_vehicle,
+                                                       t_route,
+                                                       _wait_t_new,
+                                                       &_tw_s_route,
+                                                       &_tw_t_route,
+                                                       best_known_threshold);
+  wait_gain_adjusted = true;
 }
 
 void PDShift::apply() {

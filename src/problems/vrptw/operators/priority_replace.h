@@ -31,6 +31,8 @@ public:
 
   void compute_gain() override;
 
+  void apply_wait_gain_adjustment() override;
+
   bool is_valid() override;
 
   void apply() override;

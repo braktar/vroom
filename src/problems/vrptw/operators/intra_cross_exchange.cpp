@@ -37,8 +37,14 @@ void IntraCrossExchange::compute_gain() {
   set_wait_gain_upper_bound(utils::wait_gain_upper_bound_from_route(
     _input, s_vehicle, s_route, &_tw_s_route));
 
+  (void)gain_upper_bound();
   cvrp::IntraCrossExchange::compute_gain();
+}
 
+void IntraCrossExchange::apply_wait_gain_adjustment() {
+  if (wait_gain_adjusted || !gain_computed) {
+    return;
+  }
   auto moved = _moved_jobs;
   if (reverse_t_edge) {
     std::swap(moved[0], moved[1]);
@@ -54,6 +60,7 @@ void IntraCrossExchange::compute_gain() {
                                                moved,
                                                &_tw_s_route,
                                                best_known_threshold);
+  wait_gain_adjusted = true;
 }
 
 bool IntraCrossExchange::is_valid() {

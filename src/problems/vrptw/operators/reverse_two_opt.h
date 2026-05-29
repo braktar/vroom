@@ -21,6 +21,8 @@ private:
 
   void compute_gain() override;
 
+  void apply_wait_gain_adjustment() override;
+
 public:
   ReverseTwoOpt(const Input& input,
                 const utils::SolutionState& sol_state,

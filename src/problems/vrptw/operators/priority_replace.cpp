@@ -44,6 +44,13 @@ void PriorityReplace::compute_gain() {
     return;
   }
 
+}
+
+
+void PriorityReplace::apply_wait_gain_adjustment() {
+  if (wait_gain_adjusted || !gain_computed) {
+    return;
+  }
   std::vector<Index> new_route;
   if (replace_start_valid) {
     new_route.push_back(_u);
@@ -57,7 +64,6 @@ void PriorityReplace::compute_gain() {
                      s_route.begin() + static_cast<std::ptrdiff_t>(t_rank));
     new_route.push_back(_u);
   }
-
   utils::adjust_stored_gain_for_wait_approx_one_route(_input,
                                                       stored_gain,
                                                       s_vehicle,
@@ -65,6 +71,7 @@ void PriorityReplace::compute_gain() {
                                                       new_route,
                                                       &_tw_s_route,
                                                       best_known_threshold);
+  wait_gain_adjusted = true;
 }
 
 bool PriorityReplace::is_valid() {

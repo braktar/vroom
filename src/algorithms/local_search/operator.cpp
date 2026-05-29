@@ -18,6 +18,7 @@ OperatorName Operator::get_name() const {
 void Operator::set_best_known_threshold(Eval threshold) {
   best_known_threshold = threshold;
   gain_computed = false;
+  wait_gain_adjusted = false;
   wait_gain_upper_bound.reset();
 }
 
@@ -29,11 +30,16 @@ const std::optional<Cost>& Operator::get_wait_gain_upper_bound() const {
   return wait_gain_upper_bound;
 }
 
-Eval Operator::gain() {
+void Operator::ensure_travel_gain_computed() {
   if (!gain_computed) {
     wait_gain_upper_bound.reset();
-    this->compute_gain();
+    compute_gain();
   }
+}
+
+Eval Operator::gain() {
+  ensure_travel_gain_computed();
+  apply_wait_gain_adjustment();
   return stored_gain;
 }
 

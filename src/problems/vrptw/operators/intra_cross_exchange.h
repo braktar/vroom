@@ -20,6 +20,8 @@ private:
 
   void compute_gain() override;
 
+  void apply_wait_gain_adjustment() override;
+
 public:
   IntraCrossExchange(const Input& input,
                      const utils::SolutionState& sol_state,

@@ -36,20 +36,22 @@ namespace vroom::ls {
 
 namespace {
 
-template <class Operator>
-bool operator_beats_current_best(const Input& input,
-                                Operator& op,
-                                const Eval& current_best) {
+template <class Op>
+bool operator_beats_current_best(Op& op, const Eval& current_best) {
   op.set_best_known_threshold(current_best);
-  const auto travel_ub = op.gain_upper_bound();
-  if (input.has_nonzero_per_wait_hour()) {
-    const auto& wait_ub = op.get_wait_gain_upper_bound();
-    if (wait_ub.has_value() && current_best.cost >= travel_ub.cost + *wait_ub) {
-      return false;
-    }
-    return op.is_valid() && current_best < op.gain();
+  op.ensure_travel_gain_computed();
+  if (!(current_best < op.current_gain())) {
+    return false;
   }
-  return current_best < travel_ub && op.is_valid() && current_best < op.gain();
+  if (!op.is_valid()) {
+    return false;
+  }
+  return current_best < op.gain();
+}
+
+template <class Op>
+bool ls_candidate_improves(Op& op, const Eval& current_best) {
+  return operator_beats_current_best(op, current_best);
 }
 
 } // namespace
@@ -428,9 +430,11 @@ void LocalSearch<Route,
   Eval best_gain(static_cast<Cost>(1));
   Priority best_priority = 0;
   auto best_removal = std::numeric_limits<unsigned>::max();
+  bool deadline_exceeded = false;
 
-  while (best_gain.cost > 0 || best_priority > 0) {
+  while (!deadline_exceeded && (best_gain.cost > 0 || best_priority > 0)) {
     if (_deadline.has_value() && _deadline.value() < utils::now()) {
+      deadline_exceeded = true;
       break;
     }
 
@@ -448,6 +452,10 @@ void LocalSearch<Route,
         const auto& u_delivery = _input.jobs[u].delivery;
 
         for (const auto& [source, target] : s_t_pairs) {
+      if (deadline_exceeded) {
+        break;
+      }
+
           if (source != target || !_input.vehicle_ok_with_job(source, u) ||
               _sol[source].empty()) {
             continue;
@@ -532,7 +540,7 @@ void LocalSearch<Route,
                   best_removals[source] = 0;
                   // This may potentially define a negative value as
                   // best gain in case priority_gain is non-zero.
-                  best_gains[source][source] = r.gain();
+                  best_gains[source][source] = r.current_gain();
                   best_ops[source][source] =
                     std::make_unique<UnassignedExchange>(r);
                 }
@@ -551,6 +559,10 @@ void LocalSearch<Route,
         Priority u_priority = _input.jobs[u].priority;
 
         for (const auto& [source, target] : s_t_pairs) {
+      if (deadline_exceeded) {
+        break;
+      }
+
           if (source != target || !_input.vehicle_ok_with_job(source, u) ||
               _sol[source].empty() ||
               // We only search for net priority gains here.
@@ -635,7 +647,7 @@ void LocalSearch<Route,
                 best_removals[source] = removal;
                 // This may potentially define a negative value as best
                 // gain.
-                best_gains[source][source] = r.gain();
+                best_gains[source][source] = r.current_gain();
                 best_ops[source][source] = std::make_unique<PriorityReplace>(r);
               }
             }
@@ -646,6 +658,10 @@ void LocalSearch<Route,
 
     // CrossExchange stuff
     for (const auto& [source, target] : s_t_pairs) {
+      if (deadline_exceeded) {
+        break;
+      }
+
       if (target <= source || // This operator is symmetric.
           best_priorities[source] > 0 || best_priorities[target] > 0 ||
           _sol[source].size() < 2 || _sol[target].size() < 2 ||
@@ -771,8 +787,8 @@ void LocalSearch<Route,
                           !is_t_pickup);
 
           auto& current_best = best_gains[source][target];
-          if (operator_beats_current_best(_input, r, current_best)) {
-            current_best = r.gain();
+          if (operator_beats_current_best(r, current_best)) {
+            current_best = r.current_gain();
             best_ops[source][target] = std::make_unique<CrossExchange>(r);
           }
         }
@@ -782,6 +798,10 @@ void LocalSearch<Route,
     if (_input.has_jobs()) {
       // MixedExchange stuff
       for (const auto& [source, target] : s_t_pairs) {
+      if (deadline_exceeded) {
+        break;
+      }
+
         if (source == target || best_priorities[source] > 0 ||
             best_priorities[target] > 0 || _sol[source].size() == 0 ||
             _sol[target].size() < 2 ||
@@ -883,8 +903,8 @@ void LocalSearch<Route,
                             !is_t_pickup);
 
             auto& current_best = best_gains[source][target];
-            if (operator_beats_current_best(_input, r, current_best)) {
-              current_best = r.gain();
+            if (operator_beats_current_best(r, current_best)) {
+              current_best = r.current_gain();
               best_ops[source][target] = std::make_unique<MixedExchange>(r);
             }
           }
@@ -894,6 +914,10 @@ void LocalSearch<Route,
 
     // TwoOpt stuff
     for (const auto& [source, target] : s_t_pairs) {
+      if (deadline_exceeded) {
+        break;
+      }
+
       if (target <= source || // This operator is symmetric.
           best_priorities[source] > 0 || best_priorities[target] > 0 ||
           (_input.all_locations_have_coords() &&
@@ -1002,8 +1026,8 @@ void LocalSearch<Route,
                    target,
                    t_rank);
 
-          if (best_gains[source][target] < r.gain() && r.is_valid()) {
-            best_gains[source][target] = r.gain();
+          if (ls_candidate_improves(r, best_gains[source][target])) {
+            best_gains[source][target] = r.current_gain();
             best_ops[source][target] = std::make_unique<TwoOpt>(r);
           }
         }
@@ -1012,6 +1036,10 @@ void LocalSearch<Route,
 
     // ReverseTwoOpt stuff
     for (const auto& [source, target] : s_t_pairs) {
+      if (deadline_exceeded) {
+        break;
+      }
+
       if (source == target || best_priorities[source] > 0 ||
           best_priorities[target] > 0 ||
           (_input.all_locations_have_coords() &&
@@ -1102,8 +1130,8 @@ void LocalSearch<Route,
                           target,
                           t_rank);
 
-          if (best_gains[source][target] < r.gain() && r.is_valid()) {
-            best_gains[source][target] = r.gain();
+          if (ls_candidate_improves(r, best_gains[source][target])) {
+            best_gains[source][target] = r.current_gain();
             best_ops[source][target] = std::make_unique<ReverseTwoOpt>(r);
           }
         }
@@ -1115,6 +1143,10 @@ void LocalSearch<Route,
 
       // Relocate stuff
       for (const auto& [source, target] : s_t_pairs) {
+      if (deadline_exceeded) {
+        break;
+      }
+
         if (source == target || best_priorities[source] > 0 ||
             best_priorities[target] > 0 || _sol[source].size() == 0) {
           continue;
@@ -1174,8 +1206,8 @@ void LocalSearch<Route,
                        t_rank);
             r.set_best_known_threshold(best_gains[source][target]);
 
-            if (best_gains[source][target] < r.gain() && r.is_valid()) {
-              best_gains[source][target] = r.gain();
+            if (ls_candidate_improves(r, best_gains[source][target])) {
+              best_gains[source][target] = r.current_gain();
               best_ops[source][target] = std::make_unique<Relocate>(r);
             }
           }
@@ -1184,6 +1216,10 @@ void LocalSearch<Route,
 
       // OrOpt stuff
       for (const auto& [source, target] : s_t_pairs) {
+      if (deadline_exceeded) {
+        break;
+      }
+
         if (source == target || best_priorities[source] > 0 ||
             best_priorities[target] > 0 || _sol[source].size() < 2) {
           continue;
@@ -1248,8 +1284,8 @@ void LocalSearch<Route,
                     t_rank);
 
             auto& current_best = best_gains[source][target];
-            if (operator_beats_current_best(_input, r, current_best)) {
-              current_best = r.gain();
+            if (operator_beats_current_best(r, current_best)) {
+              current_best = r.current_gain();
               best_ops[source][target] = std::make_unique<OrOpt>(r);
             }
           }
@@ -1260,6 +1296,10 @@ void LocalSearch<Route,
     // TSPFix stuff
     if (_input.apply_TSPFix() && !_input.has_shipments()) {
       for (const auto& [source, target] : s_t_pairs) {
+      if (deadline_exceeded) {
+        break;
+      }
+
         if (target != source || best_priorities[source] > 0 ||
             _sol[source].size() < 2) {
           continue;
@@ -1267,8 +1307,8 @@ void LocalSearch<Route,
 
         TSPFix op(_input, _sol_state, _sol[source], source);
 
-        if (best_gains[source][target] < op.gain() && op.is_valid()) {
-          best_gains[source][target] = op.gain();
+        if (ls_candidate_improves(op, best_gains[source][target])) {
+          best_gains[source][target] = op.current_gain();
           best_ops[source][target] = std::make_unique<TSPFix>(op);
         }
       }
@@ -1276,6 +1316,10 @@ void LocalSearch<Route,
 
     // IntraExchange stuff
     for (const auto& [source, target] : s_t_pairs) {
+      if (deadline_exceeded) {
+        break;
+      }
+
       if (source != target || best_priorities[source] > 0 ||
           _sol[source].size() < 3) {
         continue;
@@ -1316,8 +1360,8 @@ void LocalSearch<Route,
                           s_rank,
                           t_rank);
 
-          if (best_gains[source][source] < r.gain() && r.is_valid()) {
-            best_gains[source][source] = r.gain();
+          if (ls_candidate_improves(r, best_gains[source][source])) {
+            best_gains[source][source] = r.current_gain();
             best_ops[source][source] = std::make_unique<IntraExchange>(r);
           }
         }
@@ -1327,6 +1371,10 @@ void LocalSearch<Route,
     // IntraCrossExchange stuff
     constexpr unsigned min_intra_cross_exchange_size = 5;
     for (const auto& [source, target] : s_t_pairs) {
+      if (deadline_exceeded) {
+        break;
+      }
+
       if (source != target || best_priorities[source] > 0 ||
           _sol[source].size() < min_intra_cross_exchange_size) {
         continue;
@@ -1386,8 +1434,8 @@ void LocalSearch<Route,
                                !is_t_pickup);
 
           auto& current_best = best_gains[source][target];
-          if (operator_beats_current_best(_input, r, current_best)) {
-            current_best = r.gain();
+          if (operator_beats_current_best(r, current_best)) {
+            current_best = r.current_gain();
             best_ops[source][source] = std::make_unique<IntraCrossExchange>(r);
           }
         }
@@ -1396,6 +1444,10 @@ void LocalSearch<Route,
 
     // IntraMixedExchange stuff
     for (const auto& [source, target] : s_t_pairs) {
+      if (deadline_exceeded) {
+        break;
+      }
+
       if (source != target || best_priorities[source] > 0 ||
           _sol[source].size() < 4) {
         continue;
@@ -1452,8 +1504,8 @@ void LocalSearch<Route,
                                t_rank,
                                !is_t_pickup);
           auto& current_best = best_gains[source][target];
-          if (operator_beats_current_best(_input, r, current_best)) {
-            current_best = r.gain();
+          if (operator_beats_current_best(r, current_best)) {
+            current_best = r.current_gain();
             best_ops[source][source] = std::make_unique<IntraMixedExchange>(r);
           }
         }
@@ -1462,6 +1514,10 @@ void LocalSearch<Route,
 
     // IntraRelocate stuff
     for (const auto& [source, target] : s_t_pairs) {
+      if (deadline_exceeded) {
+        break;
+      }
+
       if (source != target || best_priorities[source] > 0 ||
           _sol[source].size() < 2) {
         continue;
@@ -1517,8 +1573,8 @@ void LocalSearch<Route,
                           s_rank,
                           t_rank);
 
-          if (best_gains[source][source] < r.gain() && r.is_valid()) {
-            best_gains[source][source] = r.gain();
+          if (ls_candidate_improves(r, best_gains[source][source])) {
+            best_gains[source][source] = r.current_gain();
             best_ops[source][source] = std::make_unique<IntraRelocate>(r);
           }
         }
@@ -1527,6 +1583,10 @@ void LocalSearch<Route,
 
     // IntraOrOpt stuff
     for (const auto& [source, target] : s_t_pairs) {
+      if (deadline_exceeded) {
+        break;
+      }
+
       if (source != target || best_priorities[source] > 0 ||
           _sol[source].size() < 4) {
         continue;
@@ -1590,8 +1650,8 @@ void LocalSearch<Route,
                        t_rank,
                        !is_pickup);
           auto& current_best = best_gains[source][target];
-          if (operator_beats_current_best(_input, r, current_best)) {
-            current_best = r.gain();
+          if (operator_beats_current_best(r, current_best)) {
+            current_best = r.current_gain();
             best_ops[source][source] = std::make_unique<IntraOrOpt>(r);
           }
         }
@@ -1600,6 +1660,10 @@ void LocalSearch<Route,
 
     // IntraTwoOpt stuff
     for (const auto& [source, target] : s_t_pairs) {
+      if (deadline_exceeded) {
+        break;
+      }
+
       if (source != target || best_priorities[source] > 0 ||
           _sol[source].size() < 4) {
         continue;
@@ -1620,8 +1684,8 @@ void LocalSearch<Route,
                         s_rank,
                         t_rank);
           auto& current_best = best_gains[source][target];
-          if (current_best < r.gain() && r.is_valid()) {
-            current_best = r.gain();
+          if (ls_candidate_improves(r, current_best)) {
+            current_best = r.current_gain();
             best_ops[source][source] = std::make_unique<IntraTwoOpt>(r);
           }
         }
@@ -1633,6 +1697,10 @@ void LocalSearch<Route,
 
       // PDShift stuff
       for (const auto& [source, target] : s_t_pairs) {
+      if (deadline_exceeded) {
+        break;
+      }
+
         if (source == target || best_priorities[source] > 0 ||
             best_priorities[target] > 0 || _sol[source].size() == 0) {
           // Don't try to put things from an empty vehicle.
@@ -1687,8 +1755,8 @@ void LocalSearch<Route,
                       target,
                       best_gains[source][target]);
 
-          if (best_gains[source][target] < pdr.gain() && pdr.is_valid()) {
-            best_gains[source][target] = pdr.gain();
+          if (ls_candidate_improves(pdr, best_gains[source][target])) {
+            best_gains[source][target] = pdr.current_gain();
             best_ops[source][target] = std::make_unique<PDShift>(pdr);
           }
         }
@@ -1699,6 +1767,10 @@ void LocalSearch<Route,
         !_input.has_homogeneous_profiles() || !_input.has_homogeneous_costs()) {
       // RouteExchange stuff
       for (const auto& [source, target] : s_t_pairs) {
+      if (deadline_exceeded) {
+        break;
+      }
+
         if (target <= source || best_priorities[source] > 0 ||
             best_priorities[target] > 0 ||
             (_sol[source].size() == 0 && _sol[target].size() == 0) ||
@@ -1736,8 +1808,8 @@ void LocalSearch<Route,
                          _sol[target],
                          target);
 
-        if (best_gains[source][target] < re.gain() && re.is_valid()) {
-          best_gains[source][target] = re.gain();
+        if (ls_candidate_improves(re, best_gains[source][target])) {
+          best_gains[source][target] = re.current_gain();
           best_ops[source][target] = std::make_unique<RouteExchange>(re);
         }
       }
@@ -1746,6 +1818,10 @@ void LocalSearch<Route,
     if (_input.has_jobs()) {
       // SwapStar stuff
       for (const auto& [source, target] : s_t_pairs) {
+      if (deadline_exceeded) {
+        break;
+      }
+
         if (target <= source || // This operator is symmetric.
             best_priorities[source] > 0 || best_priorities[target] > 0 ||
             _sol[source].size() == 0 || _sol[target].size() == 0 ||
@@ -1766,8 +1842,8 @@ void LocalSearch<Route,
                    target,
                    best_gains[source][target]);
 
-        if (best_gains[source][target] < r.gain() && r.is_valid()) {
-          best_gains[source][target] = r.gain();
+        if (ls_candidate_improves(r, best_gains[source][target])) {
+          best_gains[source][target] = r.current_gain();
           best_ops[source][target] = std::make_unique<SwapStar>(r);
         }
       }
@@ -1787,6 +1863,10 @@ void LocalSearch<Route,
 
       if (empty_route_ranks.size() >= 2) {
         for (const auto& [source, target] : s_t_pairs) {
+      if (deadline_exceeded) {
+        break;
+      }
+
           if (target != source || best_priorities[source] > 0 ||
               _sol[source].size() < 2) {
             continue;
@@ -1805,8 +1885,8 @@ void LocalSearch<Route,
                        _sol,
                        best_gains[source][target]);
 
-          if (best_gains[source][target] < r.gain() && r.is_valid()) {
-            best_gains[source][target] = r.gain();
+          if (ls_candidate_improves(r, best_gains[source][target])) {
+            best_gains[source][target] = r.current_gain();
             best_ops[source][target] = std::make_unique<RouteSplit>(r);
           }
         }

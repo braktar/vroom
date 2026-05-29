@@ -35,8 +35,13 @@ void IntraTwoOpt::compute_gain() {
       set_wait_gain_upper_bound(utils::wait_gain_upper_bound_from_route(
         _input, s_vehicle, s_route, &_tw_s_route));
     },
-    [&] { cvrp::IntraTwoOpt::compute_gain(); },
-    [&] {
+    [&] { cvrp::IntraTwoOpt::compute_gain(); });
+}
+void IntraTwoOpt::apply_wait_gain_adjustment() {
+  if (wait_gain_adjusted || !gain_computed) {
+    return;
+  }
+
       auto nr = s_route;
       std::reverse(nr.begin() + static_cast<std::ptrdiff_t>(s_rank),
                    nr.begin() + static_cast<std::ptrdiff_t>(t_rank) + 1);
@@ -47,8 +52,9 @@ void IntraTwoOpt::compute_gain() {
                                                           nr,
                                                           &_tw_s_route,
                                                           best_known_threshold);
-    });
+      wait_gain_adjusted = true;
 }
+
 
 bool IntraTwoOpt::is_valid() {
   return utils::vrptw_ls::is_valid(

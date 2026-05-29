@@ -19,8 +19,12 @@ private:
   TWRoute& _tw_s_route;
   TWRoute& _tw_t_route;
   Amount _best_t_delivery;
+  std::vector<Index> _wait_s_new;
+  std::vector<Index> _wait_t_new;
 
   void compute_gain() override;
+
+  void apply_wait_gain_adjustment() override;
 
 public:
   PDShift(const Input& input,
