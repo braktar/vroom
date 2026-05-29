@@ -676,6 +676,11 @@ Eval route_eval_for_vehicle(const Input& input,
                             Index vehicle_rank,
                             const std::vector<Index>& route);
 
+// Fast reject on travel, distance, and task time (zero wait) before TWRoute simulation.
+bool route_jobs_pass_range_pre_filter(const Input& input,
+                                      Index vehicle_rank,
+                                      const std::vector<Index>& jobs);
+
 bool route_jobs_within_max_duration(const Input& input,
                                     Index vehicle_rank,
                                     const std::vector<Index>& jobs);
@@ -724,13 +729,22 @@ inline bool routes_within_max_duration_for_ls(const Input& input,
          route_jobs_within_max_duration_for_ls(input, v2, jobs2, tw2);
 }
 
+// Skip expensive max_duration simulation when the move cannot beat current best
+// even with all prior wait cost removed (same criterion as wait gain pruning).
+bool skip_max_duration_check_for_ls(const Eval& stored_gain,
+                                    const std::optional<Cost>& wait_ub,
+                                    const Eval& best_known);
+
 template <typename RouteCheck>
 bool max_duration_feasible_for_ls(const Input& input,
-                                  const Eval& /* stored_gain */,
-                                  const std::optional<Cost>& /* wait_ub */,
-                                  const Eval& /* best_known */,
+                                  const Eval& stored_gain,
+                                  const std::optional<Cost>& wait_ub,
+                                  const Eval& best_known,
                                   RouteCheck&& route_check) {
   if (!input.has_bounded_max_duration()) {
+    return true;
+  }
+  if (skip_max_duration_check_for_ls(stored_gain, wait_ub, best_known)) {
     return true;
   }
   return route_check();

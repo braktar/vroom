@@ -56,26 +56,19 @@ void RouteSplit::compute_gain() {
       s_route.begin() + static_cast<std::ptrdiff_t>(choice.split_rank),
       s_route.end());
 
-    if (_input.has_bounded_max_duration() &&
-        (!utils::route_jobs_within_max_duration_for_ls(_input, v_begin, prefix) ||
-         !utils::route_jobs_within_max_duration_for_ls(_input, v_end, suffix))) {
-      stored_gain = NO_GAIN;
-    } else {
-      const auto& v_s = _input.vehicles[s_vehicle];
-      const auto& v_b = _input.vehicles[v_begin];
-      const auto& v_e = _input.vehicles[v_end];
-      if ((v_s.costs.per_wait_hour != 0 || v_b.costs.per_wait_hour != 0 ||
-           v_e.costs.per_wait_hour != 0) &&
-          v_s.breaks.empty() && v_b.breaks.empty() && v_e.breaks.empty()) {
-        const auto w_full = utils::wait_cost_for_job_sequence(
-          _input, s_vehicle, s_route, &_tw_s_route);
-        const auto w_prefix =
-          utils::wait_cost_for_job_sequence(_input, v_begin, prefix, nullptr);
-        const auto w_suffix =
-          utils::wait_cost_for_job_sequence(_input, v_end, suffix, nullptr);
-        if (w_full.has_value() && w_prefix.has_value() && w_suffix.has_value()) {
-          stored_gain.cost += *w_full - *w_prefix - *w_suffix;
-        }
+    const auto& v_s = _input.vehicles[s_vehicle];
+    const auto& v_b = _input.vehicles[v_begin];
+    const auto& v_e = _input.vehicles[v_end];
+    if (v_s.costs.per_wait_hour != 0 || v_b.costs.per_wait_hour != 0 ||
+        v_e.costs.per_wait_hour != 0) {
+      const auto w_full = utils::wait_cost_for_job_sequence(
+        _input, s_vehicle, s_route, &_tw_s_route);
+      const auto w_prefix =
+        utils::wait_cost_for_job_sequence(_input, v_begin, prefix, nullptr);
+      const auto w_suffix =
+        utils::wait_cost_for_job_sequence(_input, v_end, suffix, nullptr);
+      if (w_full.has_value() && w_prefix.has_value() && w_suffix.has_value()) {
+        stored_gain.cost += *w_full - *w_prefix - *w_suffix;
       }
     }
   }

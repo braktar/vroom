@@ -92,6 +92,10 @@ bool route_jobs_within_max_duration(const Input& input,
     return true;
   }
 
+  if (!route_jobs_pass_range_pre_filter(input, vehicle_rank, jobs)) {
+    return false;
+  }
+
   auto eval = route_eval_for_vehicle(input, vehicle_rank, jobs);
   if (!jobs.empty()) {
     if (const auto wait =
@@ -105,6 +109,26 @@ bool route_jobs_within_max_duration(const Input& input,
   }
 
   return vehicle.ok_for_range_bounds(eval);
+}
+
+bool route_jobs_pass_range_pre_filter(const Input& input,
+                                      Index vehicle_rank,
+                                      const std::vector<Index>& jobs) {
+  if (jobs.empty()) {
+    return true;
+  }
+
+  const auto& vehicle = input.vehicles[vehicle_rank];
+  const auto eval = route_eval_for_vehicle(input, vehicle_rank, jobs);
+  if (!vehicle.ok_for_travel_time(eval.duration) ||
+      !vehicle.ok_for_distance(eval.distance)) {
+    return false;
+  }
+  if (vehicle.max_duration != DEFAULT_MAX_DURATION &&
+      eval.duration + eval.task_duration > vehicle.max_duration) {
+    return false;
+  }
+  return true;
 }
 
 namespace {
@@ -156,12 +180,35 @@ bool apply_jobs_to_tw_route(TWRoute& tw,
   return true;
 }
 
+std::optional<Cost> wait_cost_for_job_sequence_after_edit(const Input& input,
+                                                          Index vehicle_rank,
+                                                          const std::vector<Index>& jobs,
+                                                          const TWRoute& tw_live) {
+  const auto& veh = input.vehicles[vehicle_rank];
+  if (veh.costs.per_wait_hour == 0) {
+    return Cost{0};
+  }
+  if (tw_live.route == jobs) {
+    return veh.wait_cost(tw_live.billable_total_wait);
+  }
+
+  TWRoute tw = tw_live;
+  if (!apply_jobs_to_tw_route(tw, input, jobs)) {
+    return std::nullopt;
+  }
+  return veh.wait_cost(tw.billable_total_wait);
+}
+
 bool tw_route_rebuild_and_within_max_duration(const Input& input,
                                               TWRoute tw,
                                               const std::vector<Index>& jobs) {
   const auto& vehicle = input.vehicles[tw.v_rank];
   if (vehicle.max_duration == DEFAULT_MAX_DURATION) {
     return true;
+  }
+
+  if (!jobs.empty() && !route_jobs_pass_range_pre_filter(input, tw.v_rank, jobs)) {
+    return false;
   }
 
   if (!jobs.empty() && jobs != tw.route) {
@@ -536,6 +583,9 @@ bool insertion_respects_vehicle_bounds(const Input& input,
   if (vehicle.max_duration == DEFAULT_MAX_DURATION) {
     return true;
   }
+  if (combined.duration + combined.task_duration > vehicle.max_duration) {
+    return false;
+  }
 
   std::vector<Index> jobs = route;
   jobs.insert(jobs.begin() + static_cast<std::ptrdiff_t>(rank), job_rank);
@@ -731,8 +781,11 @@ std::optional<Cost> wait_cost_approx_job_sequence(
   Index vehicle_rank,
   const std::vector<Index>& jobs) {
   const auto& veh = input.vehicles[vehicle_rank];
-  if (veh.costs.per_wait_hour == 0 || !veh.breaks.empty()) {
+  if (veh.costs.per_wait_hour == 0) {
     return Cost{0};
+  }
+  if (!veh.breaks.empty()) {
+    return wait_cost_for_job_sequence(input, vehicle_rank, jobs, nullptr);
   }
   const auto w = approx_billable_wait_jobs_only(input,
                                                 vehicle_rank,
@@ -756,9 +809,6 @@ std::optional<Cost> wait_gain_upper_bound_from_routes(
   const auto& veh2 = input.vehicles[v2];
   if (veh1.costs.per_wait_hour == 0 && veh2.costs.per_wait_hour == 0) {
     return Cost{0};
-  }
-  if (!veh1.breaks.empty() || !veh2.breaks.empty()) {
-    return std::nullopt;
   }
 
   Cost total{0};
@@ -794,12 +844,21 @@ bool skip_exact_wait_gain_adjustment(const Eval& stored_gain,
 
 } // namespace
 
+bool skip_max_duration_check_for_ls(const Eval& stored_gain,
+                                    const std::optional<Cost>& wait_ub,
+                                    const Eval& best_known) {
+  if (best_known == NO_EVAL || !wait_ub.has_value()) {
+    return false;
+  }
+  return stored_gain.cost + *wait_ub <= best_known.cost;
+}
+
 std::optional<Cost> wait_cost_for_job_sequence(const Input& input,
                                                Index vehicle_rank,
                                                const std::vector<Index>& jobs,
                                                const TWRoute* tw_if_matches) {
   const auto& veh = input.vehicles[vehicle_rank];
-  if (veh.costs.per_wait_hour == 0 || !veh.breaks.empty()) {
+  if (veh.costs.per_wait_hour == 0) {
     return Cost{0};
   }
   if (tw_if_matches != nullptr && tw_if_matches->route == jobs) {
@@ -820,7 +879,7 @@ Cost wait_insertion_marginal_cost(const Input& input,
                                   const std::vector<Index>& route_with_insertion) {
   const auto v = route.v_rank;
   const auto& veh = input.vehicles[v];
-  if (veh.costs.per_wait_hour == 0 || !veh.breaks.empty()) {
+  if (veh.costs.per_wait_hour == 0) {
     return Cost{0};
   }
   const auto old_wc =
@@ -828,15 +887,12 @@ Cost wait_insertion_marginal_cost(const Input& input,
   if (!old_wc.has_value()) {
     return Cost{0};
   }
-  const auto new_wc =
-    wait_cost_approx_job_sequence(input, v, route_with_insertion);
+  const auto new_wc = wait_cost_for_job_sequence_after_edit(input,
+                                                            v,
+                                                            route_with_insertion,
+                                                            route);
   if (!new_wc.has_value()) {
-    const auto new_wc_exact =
-      wait_cost_for_job_sequence(input, v, route_with_insertion, nullptr);
-    if (!new_wc_exact.has_value()) {
-      return Cost{0};
-    }
-    return *old_wc - *new_wc_exact;
+    return Cost{0};
   }
   return *old_wc - *new_wc;
 }
@@ -1085,9 +1141,6 @@ void adjust_stored_gain_for_wait_approx_two_routes(
   if (veh1.costs.per_wait_hour == 0 && veh2.costs.per_wait_hour == 0) {
     return;
   }
-  if (!veh1.breaks.empty() || !veh2.breaks.empty()) {
-    return;
-  }
 
   const auto wait_ub = wait_gain_upper_bound_from_routes(input,
                                                          v1,
@@ -1117,10 +1170,20 @@ void adjust_stored_gain_for_wait_approx_two_routes(
     return;
   }
 
-  const auto new_wc1_exact =
-    wait_cost_for_job_sequence(input, v1, r1_new, nullptr);
-  const auto new_wc2_exact =
-    wait_cost_for_job_sequence(input, v2, r2_new, nullptr);
+  std::optional<Cost> new_wc1_exact;
+  std::optional<Cost> new_wc2_exact;
+  if (tw_r1_old != nullptr) {
+    new_wc1_exact =
+      wait_cost_for_job_sequence_after_edit(input, v1, r1_new, *tw_r1_old);
+  } else {
+    new_wc1_exact = wait_cost_for_job_sequence(input, v1, r1_new, nullptr);
+  }
+  if (tw_r2_old != nullptr) {
+    new_wc2_exact =
+      wait_cost_for_job_sequence_after_edit(input, v2, r2_new, *tw_r2_old);
+  } else {
+    new_wc2_exact = wait_cost_for_job_sequence(input, v2, r2_new, nullptr);
+  }
   if (!new_wc1_exact.has_value() || !new_wc2_exact.has_value()) {
     return;
   }
@@ -1135,7 +1198,7 @@ void adjust_stored_gain_for_wait_approx_one_route(const Input& input,
                                                   const TWRoute* tw_r_old,
                                                   Eval best_known) {
   const auto& veh = input.vehicles[v];
-  if (veh.costs.per_wait_hour == 0 || !veh.breaks.empty()) {
+  if (veh.costs.per_wait_hour == 0) {
     return;
   }
 
@@ -1155,8 +1218,13 @@ void adjust_stored_gain_for_wait_approx_one_route(const Input& input,
     stored_gain.cost += *old_wc - *new_wc;
     return;
   }
-  const auto new_wc_exact =
-    wait_cost_for_job_sequence(input, v, r_new, nullptr);
+  std::optional<Cost> new_wc_exact;
+  if (tw_r_old != nullptr) {
+    new_wc_exact =
+      wait_cost_for_job_sequence_after_edit(input, v, r_new, *tw_r_old);
+  } else {
+    new_wc_exact = wait_cost_for_job_sequence(input, v, r_new, nullptr);
+  }
   if (!new_wc_exact.has_value()) {
     return;
   }
