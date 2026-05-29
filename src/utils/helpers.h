@@ -700,8 +700,8 @@ bool route_jobs_within_max_duration(const Input& input,
                                     Index vehicle_rank,
                                     const std::vector<Index>& jobs);
 
-// VRPTW LS: when tw_live is set, rebuild post-move jobs on a copy of the live
-// route (replace) so billable wait matches apply(); otherwise scratch TWRoute.
+// VRPTW LS: when tw_live is set, rebuild post-move jobs on a thread-local
+// scratch copy of the live route so billable wait matches apply().
 bool route_jobs_within_max_duration_for_ls(const Input& input,
                                            Index vehicle_rank,
                                            const std::vector<Index>& jobs,
@@ -737,6 +737,17 @@ inline bool routes_within_max_duration_for_ls(const Input& input,
                                               const std::vector<Index>& jobs2,
                                               const TWRoute* tw1 = nullptr,
                                               const TWRoute* tw2 = nullptr) {
+  if (input.has_bounded_max_duration()) {
+    const auto fails_cheap_checks = [&](Index v,
+                                        const std::vector<Index>& jobs) {
+      return !jobs.empty() &&
+             (!RawRoute::jobs_within_capacity(input, v, jobs) ||
+              !route_jobs_pass_range_pre_filter(input, v, jobs));
+    };
+    if (fails_cheap_checks(v1, jobs1) || fails_cheap_checks(v2, jobs2)) {
+      return false;
+    }
+  }
   return route_jobs_within_max_duration_for_ls(input, v1, jobs1, tw1) &&
          route_jobs_within_max_duration_for_ls(input, v2, jobs2, tw2);
 }

@@ -138,6 +138,29 @@ bool route_jobs_pass_range_pre_filter(const Input& input,
 
 namespace {
 
+// Reused across LS max_duration / wait-after-edit checks (one per thread).
+struct LsTWRouteEvalScratch {
+  Index vehicle_rank{std::numeric_limits<Index>::max()};
+  unsigned amount_size{0};
+  std::optional<TWRoute> tw;
+
+  TWRoute& route(const Input& input, Index v_rank) {
+    const auto as = input.get_amount_size();
+    if (vehicle_rank != v_rank || amount_size != as || !tw.has_value()) {
+      tw.emplace(input, v_rank, as);
+      vehicle_rank = v_rank;
+      amount_size = as;
+    }
+    return *tw;
+  }
+};
+
+thread_local LsTWRouteEvalScratch tls_tw_eval_scratch;
+
+TWRoute& ls_tw_eval_scratch_route(const Input& input, Index vehicle_rank) {
+  return tls_tw_eval_scratch.route(input, vehicle_rank);
+}
+
 // Apply the edit from tw.route -> jobs with a single partial replace (same as
 // add/remove/replace in operators). Full-route replace(0, n, jobs) would
 // re-run break ordering on the whole route and underestimate billable wait.
@@ -224,7 +247,8 @@ std::optional<Cost> wait_cost_for_job_sequence_after_edit(const Input& input,
     return wait_cost_for_billable_sequence(input, vehicle_rank, jobs, &tw_live);
   }
 
-  TWRoute tw = tw_live;
+  auto& tw = ls_tw_eval_scratch_route(input, vehicle_rank);
+  tw = tw_live;
   if (!apply_jobs_to_tw_route(tw, input, jobs)) {
     return std::nullopt;
   }
@@ -233,20 +257,9 @@ std::optional<Cost> wait_cost_for_job_sequence_after_edit(const Input& input,
 }
 
 bool tw_route_rebuild_and_within_max_duration(const Input& input,
-                                              TWRoute tw,
+                                              TWRoute& tw,
                                               const std::vector<Index>& jobs) {
   const auto& vehicle = input.vehicles[tw.v_rank];
-  if (vehicle.max_duration == DEFAULT_MAX_DURATION) {
-    return true;
-  }
-
-  if (!jobs.empty() && !route_jobs_pass_range_pre_filter(input, tw.v_rank, jobs)) {
-    return false;
-  }
-
-  if (!jobs.empty() && !RawRoute::jobs_within_capacity(input, tw.v_rank, jobs)) {
-    return false;
-  }
 
   if (!jobs.empty() && jobs != tw.route) {
     if (!apply_jobs_to_tw_route(tw, input, jobs)) {
@@ -747,7 +760,6 @@ billable_wait_for_job_sequence_via_empty_replace(const Input& input,
 // Billable wait for a job sequence: three paths (sequential add, empty-route
 // batch replace when breaks + multi-job, partial edit via apply_jobs_to_tw_route)
 // reflect different break scheduling semantics — keep all three.
-
 std::optional<Duration> billable_wait_for_job_sequence_aligned_with_route_eval(
   const Input& input,
   Index vehicle_rank,
@@ -831,8 +843,19 @@ bool route_jobs_within_max_duration_for_ls(const Input& input,
     return true;
   }
 
+  if (!jobs.empty()) {
+    if (!RawRoute::jobs_within_capacity(input, vehicle_rank, jobs)) {
+      return false;
+    }
+    if (!route_jobs_pass_range_pre_filter(input, vehicle_rank, jobs)) {
+      return false;
+    }
+  }
+
   if (tw_live != nullptr && tw_live->v_rank == vehicle_rank) {
-    return tw_route_rebuild_and_within_max_duration(input, *tw_live, jobs);
+    auto& scratch = ls_tw_eval_scratch_route(input, vehicle_rank);
+    scratch = *tw_live;
+    return tw_route_rebuild_and_within_max_duration(input, scratch, jobs);
   }
 
   return route_jobs_within_max_duration(input, vehicle_rank, jobs);
