@@ -87,6 +87,10 @@ Eval route_eval_for_vehicle(const Input& input,
 bool route_jobs_within_max_duration(const Input& input,
                                     Index vehicle_rank,
                                     const std::vector<Index>& jobs) {
+  if (!RawRoute::jobs_within_capacity(input, vehicle_rank, jobs)) {
+    return false;
+  }
+
   const auto& vehicle = input.vehicles[vehicle_rank];
   if (vehicle.max_duration == DEFAULT_MAX_DURATION) {
     return true;
@@ -141,6 +145,10 @@ bool apply_jobs_to_tw_route(TWRoute& tw,
                             const std::vector<Index>& jobs) {
   if (tw.route == jobs) {
     return true;
+  }
+
+  if (!RawRoute::jobs_within_capacity(input, tw.v_rank, jobs)) {
+    return false;
   }
 
   const auto& old = tw.route;
@@ -208,6 +216,10 @@ bool tw_route_rebuild_and_within_max_duration(const Input& input,
   }
 
   if (!jobs.empty() && !route_jobs_pass_range_pre_filter(input, tw.v_rank, jobs)) {
+    return false;
+  }
+
+  if (!jobs.empty() && !RawRoute::jobs_within_capacity(input, tw.v_rank, jobs)) {
     return false;
   }
 
@@ -581,7 +593,9 @@ bool insertion_respects_vehicle_bounds(const Input& input,
     return false;
   }
   if (vehicle.max_duration == DEFAULT_MAX_DURATION) {
-    return true;
+    std::vector<Index> jobs = route;
+    jobs.insert(jobs.begin() + static_cast<std::ptrdiff_t>(rank), job_rank);
+    return RawRoute::jobs_within_capacity(input, vehicle_rank, jobs);
   }
   if (combined.duration + combined.task_duration > vehicle.max_duration) {
     return false;

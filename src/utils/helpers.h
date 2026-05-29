@@ -681,6 +681,21 @@ bool route_jobs_pass_range_pre_filter(const Input& input,
                                       Index vehicle_rank,
                                       const std::vector<Index>& jobs);
 
+inline bool route_jobs_within_capacity(const Input& input,
+                                      Index vehicle_rank,
+                                      const std::vector<Index>& jobs) {
+  return RawRoute::jobs_within_capacity(input, vehicle_rank, jobs);
+}
+
+inline bool routes_within_capacity(const Input& input,
+                                  Index v1,
+                                  const std::vector<Index>& jobs1,
+                                  Index v2,
+                                  const std::vector<Index>& jobs2) {
+  return route_jobs_within_capacity(input, v1, jobs1) &&
+         route_jobs_within_capacity(input, v2, jobs2);
+}
+
 bool route_jobs_within_max_duration(const Input& input,
                                     Index vehicle_rank,
                                     const std::vector<Index>& jobs);
@@ -744,9 +759,11 @@ bool max_duration_feasible_for_ls(const Input& input,
   if (!input.has_bounded_max_duration()) {
     return true;
   }
-  if (skip_max_duration_check_for_ls(stored_gain, wait_ub, best_known)) {
-    return true;
-  }
+  // Always run the route check in is_valid(): skip_max_duration_check_for_ls
+  // only applies to wait-gain adjustment pruning, not feasibility.
+  (void)stored_gain;
+  (void)wait_ub;
+  (void)best_known;
   return route_check();
 }
 

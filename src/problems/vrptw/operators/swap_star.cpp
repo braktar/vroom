@@ -116,13 +116,19 @@ bool SwapStar::is_valid() {
   if (!gain_computed || choice.gain.cost <= 0) {
     return false;
   }
-  if (!_input.has_bounded_max_duration()) {
-    return true;
-  }
 
   auto ns = s_route;
   auto nt = t_route;
   apply_swap_star_to_copies(ns, nt, choice);
+
+  if (!utils::routes_within_capacity(_input, s_vehicle, ns, t_vehicle, nt)) {
+    return false;
+  }
+
+  if (!_input.has_bounded_max_duration()) {
+    return true;
+  }
+
   return utils::routes_within_max_duration_for_ls(_input,
                                                   s_vehicle,
                                                   ns,

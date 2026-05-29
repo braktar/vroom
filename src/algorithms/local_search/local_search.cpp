@@ -1877,6 +1877,9 @@ void LocalSearch<Route,
         _sol_state.set_pd_gains(_sol[v_rank]);
 
         assert(_sol[v_rank].size() <= _input.vehicles[v_rank].max_tasks);
+        assert(RawRoute::jobs_within_capacity(_input,
+                                              v_rank,
+                                              _sol[v_rank].route));
         assert(_input.vehicles[v_rank].ok_for_range_bounds(
           _sol_state.route_evals[v_rank]));
       }

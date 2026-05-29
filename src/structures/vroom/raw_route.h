@@ -53,6 +53,8 @@ private:
   Amount _delivery_margin;
   Amount _pickup_margin;
 
+  bool compute_amounts(const Input& input, bool check_capacity_only);
+
 public:
   Index v_rank;
   Index v_type;
@@ -75,6 +77,12 @@ public:
   }
 
   void update_amounts(const Input& input);
+
+  // Check whether jobs fit vehicle capacity (peak and depot load) without
+  // mutating this route.
+  static bool jobs_within_capacity(const Input& input,
+                                   Index vehicle_rank,
+                                   const std::vector<Index>& jobs);
 
   bool has_pending_delivery_after_rank(Index rank) const;
 
