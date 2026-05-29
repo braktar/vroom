@@ -121,11 +121,7 @@ bool IntraCrossExchange::is_valid() {
     return false;
   }
 
-  return utils::max_duration_feasible_for_ls(_input,
-                                             stored_gain,
-                                             get_wait_gain_upper_bound(),
-                                             best_known_threshold,
-                                             [&] {
+  return utils::max_duration_feasible_for_ls(_input, [&] {
                                                const auto [reverse_s, reverse_t] =
                                                  utils::intra_cross_exchange_chosen_reverse_edges(
                                                    _normal_s_gain,

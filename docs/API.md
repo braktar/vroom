@@ -207,14 +207,8 @@ These options interact on the same timeline:
 
 - **`time_window.start`** is the earliest depot release; billable idle at the depot is counted from this time up to the chosen leave time.
 - **`departure`** caps the **latest** depot leave. A tight cap (`departure` close to `time_window.start`) shifts idle time from the depot onto the road, where it still counts toward **`max_duration`** and toward wait cost when `per_wait_hour` is set.
-- **`max_duration`** limits travel + job setup/service + **billable** waiting (mandatory `break` service is excluded). Local search rejects moves that would exceed it after an exact timeline check.
-
-Practical guidelines:
-
-- Prefer a depot window `[time_window.start, departure]` wide enough to absorb early arrivals when both `max_duration` and `per_wait_hour` are active.
-- Avoid setting `departure` barely above `time_window.start` if routes are time-window tight or include mandatory `breaks`.
-- Use `per_wait_hour` in the same order of magnitude as `per_hour` (often roughly 75–90% of `per_hour`) so the solver discourages waiting without making travel secondary.
-- Set `per_wait_hour` to `0` when wait should not steer search; omit `max_duration` on vehicles that do not need a hard duration cap (checks are skipped).
+- **`max_duration`** limits travel + job setup/service + **billable** waiting (mandatory `break` service is excluded). Local search rejects moves that would exceed it after an exact timeline check (feasibility is never skipped from this bound).
+- Wait-gain adjustment in local search may be pruned when a move cannot beat the current best even if all prior wait cost were removed; this does not relax `max_duration` or time-window checks.
 
 ### Capacity restrictions
 

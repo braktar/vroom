@@ -124,11 +124,7 @@ bool CrossExchange::is_valid() {
     return false;
   }
 
-  return utils::max_duration_feasible_for_ls(_input,
-                                             stored_gain,
-                                             get_wait_gain_upper_bound(),
-                                             best_known_threshold,
-                                             [&] {
+  return utils::max_duration_feasible_for_ls(_input, [&] {
                                                return utils::cross_exchange_within_max_duration(
                                                  _input,
                                                  s_vehicle,

@@ -700,9 +700,6 @@ bool route_jobs_within_max_duration(const Input& input,
                                     Index vehicle_rank,
                                     const std::vector<Index>& jobs);
 
-// Same bounds as update_route_eval + assert in LS (travel, distance, max_duration).
-bool tw_route_within_max_duration(const Input& input, const TWRoute& tw);
-
 // VRPTW LS: when tw_live is set, rebuild post-move jobs on a copy of the live
 // route (replace) so billable wait matches apply(); otherwise scratch TWRoute.
 bool route_jobs_within_max_duration_for_ls(const Input& input,
@@ -744,26 +741,18 @@ inline bool routes_within_max_duration_for_ls(const Input& input,
          route_jobs_within_max_duration_for_ls(input, v2, jobs2, tw2);
 }
 
-// Skip expensive max_duration simulation when the move cannot beat current best
-// even with all prior wait cost removed (same criterion as wait gain pruning).
-bool skip_max_duration_check_for_ls(const Eval& stored_gain,
-                                    const std::optional<Cost>& wait_ub,
-                                    const Eval& best_known);
+// Skip exact wait-cost adjustment when the move cannot beat current best even
+// if all prior wait cost were removed (used in adjust_stored_gain_for_wait_* only).
+bool skip_ls_wait_pruning(const Eval& stored_gain,
+                           const std::optional<Cost>& wait_ub,
+                           const Eval& best_known);
 
 template <typename RouteCheck>
 bool max_duration_feasible_for_ls(const Input& input,
-                                  const Eval& stored_gain,
-                                  const std::optional<Cost>& wait_ub,
-                                  const Eval& best_known,
                                   RouteCheck&& route_check) {
   if (!input.has_bounded_max_duration()) {
     return true;
   }
-  // Always run the route check in is_valid(): skip_max_duration_check_for_ls
-  // only applies to wait-gain adjustment pruning, not feasibility.
-  (void)stored_gain;
-  (void)wait_ub;
-  (void)best_known;
   return route_check();
 }
 

@@ -87,11 +87,7 @@ bool IntraMixedExchange::is_valid() {
     return false;
   }
 
-  return utils::max_duration_feasible_for_ls(_input,
-                                             stored_gain,
-                                             get_wait_gain_upper_bound(),
-                                             best_known_threshold,
-                                             [&] {
+  return utils::max_duration_feasible_for_ls(_input, [&] {
                                                const bool reverse_t =
                                                  utils::edge_swap_chosen_reverse(
                                                    _normal_s_gain,

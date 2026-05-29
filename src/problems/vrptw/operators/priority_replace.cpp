@@ -10,7 +10,7 @@ All rights reserved (see LICENSE).
 #include <algorithm>
 
 #include "problems/vrptw/operators/priority_replace.h"
-#include "utils/helpers.h"
+#include "utils/helpers_vrptw_ls.h"
 
 namespace vroom::vrptw {
 
@@ -68,40 +68,35 @@ void PriorityReplace::compute_gain() {
 }
 
 bool PriorityReplace::is_valid() {
-  bool valid = cvrp::PriorityReplace::is_valid();
+  return utils::vrptw_ls::is_valid(
+    _input,
+    [&] {
+      if (!cvrp::PriorityReplace::is_valid()) {
+        return false;
+      }
 
-  if (valid) {
-    std::vector<Index> job_ranks({_u});
-    replace_start_valid =
-      replace_start_valid &&
-      _tw_s_route.is_valid_addition_for_tw(_input,
-                                           _input.jobs[_u].delivery,
-                                           job_ranks.begin(),
-                                           job_ranks.end(),
-                                           0,
-                                           s_rank + 1);
+      const std::vector<Index> job_ranks({_u});
+      replace_start_valid =
+        replace_start_valid &&
+        _tw_s_route.is_valid_addition_for_tw(_input,
+                                             _input.jobs[_u].delivery,
+                                             job_ranks.begin(),
+                                             job_ranks.end(),
+                                             0,
+                                             s_rank + 1);
 
-    replace_end_valid =
-      replace_end_valid &&
-      _tw_s_route.is_valid_addition_for_tw(_input,
-                                           _input.jobs[_u].delivery,
-                                           job_ranks.begin(),
-                                           job_ranks.end(),
-                                           t_rank,
-                                           s_route.size());
+      replace_end_valid =
+        replace_end_valid &&
+        _tw_s_route.is_valid_addition_for_tw(_input,
+                                             _input.jobs[_u].delivery,
+                                             job_ranks.begin(),
+                                             job_ranks.end(),
+                                             t_rank,
+                                             s_route.size());
 
-    valid = replace_start_valid || replace_end_valid;
-  }
-
-  if (!valid) {
-    return false;
-  }
-
-  return utils::max_duration_feasible_for_ls(_input,
-                                             stored_gain,
-                                             get_wait_gain_upper_bound(),
-                                             best_known_threshold,
-                                             [&] {
+      return replace_start_valid || replace_end_valid;
+    },
+    [&] {
                                                auto check_start = [&]() {
                                                  if (!replace_start_valid) {
                                                    return false;
@@ -137,8 +132,8 @@ bool PriorityReplace::is_valid() {
                                                      _input, s_vehicle, new_route, &_tw_s_route);
                                                };
 
-                                               return check_start() || check_end();
-                                             });
+      return check_start() || check_end();
+    });
 }
 
 void PriorityReplace::apply() {

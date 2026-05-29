@@ -13,14 +13,13 @@
 #### Internals
 
 - Billable wait aligned with output timeline (`billable_total_wait`)
-- VRPTW local search: hybrid wait-cost pruning and `max_duration` checks on all operators
-- LS `max_duration` uses travel pre-filter before billable-wait evaluation
+- VRPTW local search: wait-gain pruning (`skip_ls_wait_pruning`), travel pre-filter, and exact `max_duration` checks on post-move routes (live `TWRoute` partial edits when breaks are present)
 
 ### Fixed
 
 #### Internals
 
-- LS `max_duration` checks simulate post-move routes on a copy of the live `TWRoute` (partial `replace` matching operator edits) so billable wait matches `apply()`; fixes false positives when vehicles have mandatory `breaks`
+- LS rejects post-move job sequences that exceed vehicle capacity before `TWRoute` simulation; fixes debug assert in `update_amounts` on `SwapStar` / `RouteSplit` and related VRPTW paths
 - `max_duration` excludes mandatory `break` service time (jobs + travel + billable wait only; break idle before its window counts as billable wait, not break service)
 - LS `max_duration` for edge-swap operators (`CrossExchange`, `OrOpt`, `MixedExchange`, intra variants) checks only the orientation chosen in `compute_gain()`, not every TW-feasible reversal
 - Add include to fix `std::counting_semaphore` usage (#1333)

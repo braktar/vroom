@@ -86,11 +86,7 @@ bool IntraOrOpt::is_valid() {
     return false;
   }
 
-  return utils::max_duration_feasible_for_ls(_input,
-                                             stored_gain,
-                                             get_wait_gain_upper_bound(),
-                                             best_known_threshold,
-                                             [&] {
+  return utils::max_duration_feasible_for_ls(_input, [&] {
                                                const bool reverse_s =
                                                  utils::edge_swap_chosen_reverse(
                                                    _normal_t_gain,

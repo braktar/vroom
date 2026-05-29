@@ -10,7 +10,7 @@ All rights reserved (see LICENSE).
 #include "problems/vrptw/operators/intra_two_opt.h"
 #include <algorithm>
 
-#include "utils/helpers.h"
+#include "utils/helpers_vrptw_ls.h"
 
 namespace vroom::vrptw {
 
@@ -30,54 +30,51 @@ IntraTwoOpt::IntraTwoOpt(const Input& input,
 }
 
 void IntraTwoOpt::compute_gain() {
-  set_wait_gain_upper_bound(utils::wait_gain_upper_bound_from_route(
-    _input, s_vehicle, s_route, &_tw_s_route));
-
-  cvrp::IntraTwoOpt::compute_gain();
-
-  auto nr = s_route;
-  std::reverse(nr.begin() + static_cast<std::ptrdiff_t>(s_rank),
-               nr.begin() + static_cast<std::ptrdiff_t>(t_rank) + 1);
-  utils::adjust_stored_gain_for_wait_approx_one_route(_input,
-                                                      stored_gain,
-                                                      s_vehicle,
-                                                      s_route,
-                                                      nr,
-                                                      &_tw_s_route,
-                                                      best_known_threshold);
+  utils::vrptw_ls::run_compute_gain(
+    [&] {
+      set_wait_gain_upper_bound(utils::wait_gain_upper_bound_from_route(
+        _input, s_vehicle, s_route, &_tw_s_route));
+    },
+    [&] { cvrp::IntraTwoOpt::compute_gain(); },
+    [&] {
+      auto nr = s_route;
+      std::reverse(nr.begin() + static_cast<std::ptrdiff_t>(s_rank),
+                   nr.begin() + static_cast<std::ptrdiff_t>(t_rank) + 1);
+      utils::adjust_stored_gain_for_wait_approx_one_route(_input,
+                                                          stored_gain,
+                                                          s_vehicle,
+                                                          s_route,
+                                                          nr,
+                                                          &_tw_s_route,
+                                                          best_known_threshold);
+    });
 }
 
 bool IntraTwoOpt::is_valid() {
-  if (!cvrp::IntraTwoOpt::is_valid()) {
-    return false;
-  }
-
-  auto rev_t = s_route.rbegin() + (s_route.size() - t_rank - 1);
-  auto rev_s_next = s_route.rbegin() + (s_route.size() - s_rank);
-
-  if (!_tw_s_route.is_valid_addition_for_tw(_input,
-                                            delivery,
-                                            rev_t,
-                                            rev_s_next,
-                                            s_rank,
-                                            t_rank + 1)) {
-    return false;
-  }
-
-  return utils::max_duration_feasible_for_ls(_input,
-                                             stored_gain,
-                                             get_wait_gain_upper_bound(),
-                                             best_known_threshold,
-                                             [&] {
-                                               auto nr = s_route;
-                                               std::reverse(
-                                                 nr.begin() +
-                                                   static_cast<std::ptrdiff_t>(s_rank),
-                                                 nr.begin() +
-                                                   static_cast<std::ptrdiff_t>(t_rank) + 1);
-                                               return utils::route_jobs_within_max_duration_for_ls(
-                                                 _input, s_vehicle, nr, &_tw_s_route);
-                                             });
+  return utils::vrptw_ls::is_valid(
+    _input,
+    [&] {
+      if (!cvrp::IntraTwoOpt::is_valid()) {
+        return false;
+      }
+      auto rev_t = s_route.rbegin() + (s_route.size() - t_rank - 1);
+      auto rev_s_next = s_route.rbegin() + (s_route.size() - s_rank);
+      return _tw_s_route.is_valid_addition_for_tw(_input,
+                                                  delivery,
+                                                  rev_t,
+                                                  rev_s_next,
+                                                  s_rank,
+                                                  t_rank + 1);
+    },
+    [&] {
+      auto nr = s_route;
+      std::reverse(nr.begin() + static_cast<std::ptrdiff_t>(s_rank),
+                   nr.begin() + static_cast<std::ptrdiff_t>(t_rank) + 1);
+      return utils::route_jobs_within_max_duration_for_ls(_input,
+                                                          s_vehicle,
+                                                          nr,
+                                                          &_tw_s_route);
+    });
 }
 
 void IntraTwoOpt::apply() {

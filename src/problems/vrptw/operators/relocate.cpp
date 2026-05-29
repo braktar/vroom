@@ -8,7 +8,7 @@ All rights reserved (see LICENSE).
 */
 
 #include "problems/vrptw/operators/relocate.h"
-#include "utils/helpers.h"
+#include "utils/helpers_vrptw_ls.h"
 
 namespace vroom::vrptw {
 
@@ -33,60 +33,58 @@ Relocate::Relocate(const Input& input,
 }
 
 void Relocate::compute_gain() {
-  set_wait_gain_upper_bound(
-    utils::wait_gain_upper_bound_from_routes(_input,
-                                             s_vehicle,
-                                             s_route,
-                                             &_tw_s_route,
-                                             t_vehicle,
-                                             t_route,
-                                             &_tw_t_route));
-
-  cvrp::Relocate::compute_gain();
-
-  utils::adjust_relocate_wait_gain(_input,
-                                   stored_gain,
-                                   s_vehicle,
-                                   s_route,
-                                   s_rank,
-                                   t_vehicle,
-                                   t_route,
-                                   t_rank,
-                                   &_tw_s_route,
-                                   &_tw_t_route,
-                                   best_known_threshold);
+  utils::vrptw_ls::run_compute_gain(
+    [&] {
+      set_wait_gain_upper_bound(
+        utils::wait_gain_upper_bound_from_routes(_input,
+                                                 s_vehicle,
+                                                 s_route,
+                                                 &_tw_s_route,
+                                                 t_vehicle,
+                                                 t_route,
+                                                 &_tw_t_route));
+    },
+    [&] { cvrp::Relocate::compute_gain(); },
+    [&] {
+      utils::adjust_relocate_wait_gain(_input,
+                                       stored_gain,
+                                       s_vehicle,
+                                       s_route,
+                                       s_rank,
+                                       t_vehicle,
+                                       t_route,
+                                       t_rank,
+                                       &_tw_s_route,
+                                       &_tw_t_route,
+                                       best_known_threshold);
+    });
 }
 
 bool Relocate::is_valid() {
-  if (!cvrp::Relocate::is_valid() ||
-      !_tw_t_route.is_valid_addition_for_tw(_input, s_route[s_rank], t_rank) ||
-      !_tw_s_route.is_valid_removal(_input, s_rank, 1)) {
-    return false;
-  }
-
-  return utils::max_duration_feasible_for_ls(_input,
-                                             stored_gain,
-                                             get_wait_gain_upper_bound(),
-                                             best_known_threshold,
-                                             [&] {
-                                               std::vector<Index> source_after;
-                                               std::vector<Index> target_after;
-                                               utils::build_relocate_post_routes(
-                                                 s_route,
-                                                 s_rank,
-                                                 t_route,
-                                                 t_rank,
-                                                 source_after,
-                                                 target_after);
-                                               return utils::routes_within_max_duration_for_ls(
-                                                 _input,
-                                                 s_vehicle,
-                                                 source_after,
-                                                 t_vehicle,
-                                                 target_after,
-                                                 &_tw_s_route,
-                                                 &_tw_t_route);
-                                             });
+  return utils::vrptw_ls::is_valid(
+    _input,
+    [&] {
+      return cvrp::Relocate::is_valid() &&
+             _tw_t_route.is_valid_addition_for_tw(_input, s_route[s_rank], t_rank) &&
+             _tw_s_route.is_valid_removal(_input, s_rank, 1);
+    },
+    [&] {
+      std::vector<Index> source_after;
+      std::vector<Index> target_after;
+      utils::build_relocate_post_routes(s_route,
+                                        s_rank,
+                                        t_route,
+                                        t_rank,
+                                        source_after,
+                                        target_after);
+      return utils::routes_within_max_duration_for_ls(_input,
+                                                      s_vehicle,
+                                                      source_after,
+                                                      t_vehicle,
+                                                      target_after,
+                                                      &_tw_s_route,
+                                                      &_tw_t_route);
+    });
 }
 
 void Relocate::apply() {

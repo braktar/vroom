@@ -8,7 +8,7 @@ All rights reserved (see LICENSE).
 */
 
 #include "problems/vrptw/operators/route_exchange.h"
-#include "utils/helpers.h"
+#include "utils/helpers_vrptw_ls.h"
 
 namespace vroom::vrptw {
 
@@ -31,62 +31,58 @@ RouteExchange::RouteExchange(const Input& input,
 }
 
 void RouteExchange::compute_gain() {
-  set_wait_gain_upper_bound(
-    utils::wait_gain_upper_bound_from_routes(_input,
+  utils::vrptw_ls::run_compute_gain(
+    [&] {
+      set_wait_gain_upper_bound(
+        utils::wait_gain_upper_bound_from_routes(_input,
+                                                 s_vehicle,
+                                                 s_route,
+                                                 &_tw_s_route,
+                                                 t_vehicle,
+                                                 t_route,
+                                                 &_tw_t_route));
+    },
+    [&] { cvrp::RouteExchange::compute_gain(); },
+    [&] {
+      utils::adjust_route_exchange_wait_gain(_input,
+                                             stored_gain,
                                              s_vehicle,
                                              s_route,
-                                             &_tw_s_route,
                                              t_vehicle,
                                              t_route,
-                                             &_tw_t_route));
-
-  cvrp::RouteExchange::compute_gain();
-
-  utils::adjust_route_exchange_wait_gain(_input,
-                                         stored_gain,
-                                         s_vehicle,
-                                         s_route,
-                                         t_vehicle,
-                                         t_route,
-                                         &_tw_s_route,
-                                         &_tw_t_route,
-                                         best_known_threshold);
+                                             &_tw_s_route,
+                                             &_tw_t_route,
+                                             best_known_threshold);
+    });
 }
 
 bool RouteExchange::is_valid() {
-  bool valid = cvrp::RouteExchange::is_valid();
-  valid =
-    valid && _tw_t_route.is_valid_addition_for_tw(_input,
+  return utils::vrptw_ls::is_valid(
+    _input,
+    [&] {
+      return cvrp::RouteExchange::is_valid() &&
+             _tw_t_route.is_valid_addition_for_tw(_input,
                                                   _source_job_deliveries_sum,
                                                   s_route.begin(),
                                                   s_route.end(),
                                                   0,
-                                                  t_route.size());
-  valid =
-    valid && _tw_s_route.is_valid_addition_for_tw(_input,
-                                                  _target_job_deliveries_sum,
-                                                  t_route.begin(),
-                                                  t_route.end(),
-                                                  0,
-                                                  s_route.size());
-  if (!valid) {
-    return false;
-  }
-
-  return utils::max_duration_feasible_for_ls(_input,
-                                             stored_gain,
-                                             get_wait_gain_upper_bound(),
-                                             best_known_threshold,
-                                             [&] {
-                                               return utils::routes_within_max_duration_for_ls(
-                                                 _input,
-                                                 s_vehicle,
-                                                 t_route,
-                                                 t_vehicle,
-                                                 s_route,
-                                                 &_tw_s_route,
-                                                 &_tw_t_route);
-                                             });
+                                                  t_route.size()) &&
+             _tw_s_route.is_valid_addition_for_tw(_input,
+                                                    _target_job_deliveries_sum,
+                                                    t_route.begin(),
+                                                    t_route.end(),
+                                                    0,
+                                                    s_route.size());
+    },
+    [&] {
+      return utils::routes_within_max_duration_for_ls(_input,
+                                                      s_vehicle,
+                                                      t_route,
+                                                      t_vehicle,
+                                                      s_route,
+                                                      &_tw_s_route,
+                                                      &_tw_t_route);
+    });
 }
 
 void RouteExchange::apply() {

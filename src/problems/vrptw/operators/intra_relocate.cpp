@@ -8,7 +8,7 @@ All rights reserved (see LICENSE).
 */
 
 #include "problems/vrptw/operators/intra_relocate.h"
-#include "utils/helpers.h"
+#include "utils/helpers_vrptw_ls.h"
 
 namespace vroom::vrptw {
 
@@ -28,44 +28,45 @@ IntraRelocate::IntraRelocate(const Input& input,
 }
 
 void IntraRelocate::compute_gain() {
-  set_wait_gain_upper_bound(utils::wait_gain_upper_bound_from_route(
-    _input, s_vehicle, s_route, &_tw_s_route));
-
-  cvrp::IntraRelocate::compute_gain();
-
-  std::vector<Index> nr;
-  utils::build_intra_relocate_post_route(s_route, s_rank, t_rank, nr);
-  utils::adjust_stored_gain_for_wait_approx_one_route(_input,
-                                                      stored_gain,
-                                                      s_vehicle,
-                                                      s_route,
-                                                      nr,
-                                                      &_tw_s_route,
-                                                      best_known_threshold);
+  utils::vrptw_ls::run_compute_gain(
+    [&] {
+      set_wait_gain_upper_bound(utils::wait_gain_upper_bound_from_route(
+        _input, s_vehicle, s_route, &_tw_s_route));
+    },
+    [&] { cvrp::IntraRelocate::compute_gain(); },
+    [&] {
+      std::vector<Index> nr;
+      utils::build_intra_relocate_post_route(s_route, s_rank, t_rank, nr);
+      utils::adjust_stored_gain_for_wait_approx_one_route(_input,
+                                                          stored_gain,
+                                                          s_vehicle,
+                                                          s_route,
+                                                          nr,
+                                                          &_tw_s_route,
+                                                          best_known_threshold);
+    });
 }
 
 bool IntraRelocate::is_valid() {
-  if (!cvrp::IntraRelocate::is_valid() ||
-      !_tw_s_route.is_valid_addition_for_tw(_input,
-                                            _delivery,
-                                            _moved_jobs.begin(),
-                                            _moved_jobs.end(),
-                                            _first_rank,
-                                            _last_rank)) {
-    return false;
-  }
-
-  return utils::max_duration_feasible_for_ls(_input,
-                                             stored_gain,
-                                             get_wait_gain_upper_bound(),
-                                             best_known_threshold,
-                                             [&] {
-                                               std::vector<Index> route_after;
-                                               utils::build_intra_relocate_post_route(
-                                                 s_route, s_rank, t_rank, route_after);
-                                               return utils::route_jobs_within_max_duration_for_ls(
-                                                 _input, s_vehicle, route_after, &_tw_s_route);
-                                             });
+  return utils::vrptw_ls::is_valid(
+    _input,
+    [&] {
+      return cvrp::IntraRelocate::is_valid() &&
+             _tw_s_route.is_valid_addition_for_tw(_input,
+                                                  _delivery,
+                                                  _moved_jobs.begin(),
+                                                  _moved_jobs.end(),
+                                                  _first_rank,
+                                                  _last_rank);
+    },
+    [&] {
+      std::vector<Index> route_after;
+      utils::build_intra_relocate_post_route(s_route, s_rank, t_rank, route_after);
+      return utils::route_jobs_within_max_duration_for_ls(_input,
+                                                          s_vehicle,
+                                                          route_after,
+                                                          &_tw_s_route);
+    });
 }
 
 void IntraRelocate::apply() {
