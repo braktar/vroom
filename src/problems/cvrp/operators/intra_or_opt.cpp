@@ -8,6 +8,7 @@ All rights reserved (see LICENSE).
 */
 
 #include "problems/cvrp/operators/intra_or_opt.h"
+#include "problems/cvrp/operators/edge_swap_utils.h"
 #include "utils/helpers.h"
 
 namespace vroom::cvrp {
@@ -97,8 +98,7 @@ Eval IntraOrOpt::gain_upper_bound() {
 }
 
 void IntraOrOpt::compute_gain() {
-  assert(_gain_upper_bound_computed);
-  assert(is_normal_valid || is_reverse_valid);
+  CVRP_EDGE_SWAP_PREP(IntraOrOpt);
 
   stored_gain = s_gain;
 

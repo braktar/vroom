@@ -8,6 +8,7 @@ All rights reserved (see LICENSE).
 */
 
 #include "problems/cvrp/operators/mixed_exchange.h"
+#include "problems/cvrp/operators/edge_swap_utils.h"
 #include "utils/helpers.h"
 
 namespace vroom::cvrp {
@@ -88,8 +89,9 @@ Eval MixedExchange::gain_upper_bound() {
 }
 
 void MixedExchange::compute_gain() {
-  assert(_gain_upper_bound_computed);
-  assert(s_is_normal_valid || s_is_reverse_valid);
+  CVRP_EDGE_SWAP_PREP(MixedExchange);
+
+  stored_gain = Eval();
   if (_normal_s_gain < _reversed_s_gain) {
     // Biggest potential gain is obtained when reversing edge.
     if (s_is_reverse_valid) {

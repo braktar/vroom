@@ -8,6 +8,7 @@ All rights reserved (see LICENSE).
 */
 
 #include "problems/cvrp/operators/or_opt.h"
+#include "problems/cvrp/operators/edge_swap_utils.h"
 #include "utils/helpers.h"
 
 namespace vroom::cvrp {
@@ -59,8 +60,7 @@ Eval OrOpt::gain_upper_bound() {
 }
 
 void OrOpt::compute_gain() {
-  assert(_gain_upper_bound_computed);
-  assert(is_normal_valid || is_reverse_valid);
+  CVRP_EDGE_SWAP_PREP(OrOpt);
 
   stored_gain = s_gain;
 

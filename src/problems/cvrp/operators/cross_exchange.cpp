@@ -8,6 +8,7 @@ All rights reserved (see LICENSE).
 */
 
 #include "problems/cvrp/operators/cross_exchange.h"
+#include "problems/cvrp/operators/edge_swap_utils.h"
 #include "utils/helpers.h"
 
 namespace vroom::cvrp {
@@ -106,8 +107,9 @@ Eval CrossExchange::gain_upper_bound() {
 }
 
 void CrossExchange::compute_gain() {
-  assert(_gain_upper_bound_computed);
-  assert(s_is_normal_valid || s_is_reverse_valid);
+  CVRP_EDGE_SWAP_PREP(CrossExchange);
+
+  stored_gain = Eval();
   if (_normal_s_gain < _reversed_s_gain) {
     // Biggest potential gain is obtained when reversing edge.
     if (s_is_reverse_valid) {
@@ -126,7 +128,6 @@ void CrossExchange::compute_gain() {
     }
   }
 
-  assert(t_is_normal_valid || t_is_reverse_valid);
   if (_normal_t_gain < _reversed_t_gain) {
     // Biggest potential gain is obtained when reversing edge.
     if (t_is_reverse_valid) {

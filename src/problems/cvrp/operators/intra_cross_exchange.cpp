@@ -8,6 +8,7 @@ All rights reserved (see LICENSE).
 */
 
 #include "problems/cvrp/operators/intra_cross_exchange.h"
+#include "problems/cvrp/operators/edge_swap_utils.h"
 #include "utils/helpers.h"
 
 namespace vroom::cvrp {
@@ -106,9 +107,7 @@ Eval IntraCrossExchange::gain_upper_bound() {
 }
 
 void IntraCrossExchange::compute_gain() {
-  assert(_gain_upper_bound_computed);
-  assert(s_normal_t_normal_is_valid || s_normal_t_reverse_is_valid ||
-         s_reverse_t_reverse_is_valid || s_reverse_t_normal_is_valid);
+  CVRP_EDGE_SWAP_PREP(IntraCrossExchange);
 
   stored_gain = NO_GAIN;
 
