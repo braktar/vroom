@@ -58,6 +58,12 @@ void CrossExchange::compute_gain() {
     (void)gain_upper_bound();
   }
 
+  if (utils::vrptw_ls::ls_simple_eval(_input)) {
+    utils::vrptw_ls::run_travel_compute_gain(
+      [&] { cvrp::CrossExchange::compute_gain(); });
+    return;
+  }
+
   utils::vrptw_ls::run_edge_swap_compute_gain(
     stored_gain,
     gain_computed,
@@ -159,7 +165,63 @@ void CrossExchange::apply_wait_gain_adjustment() {
 }
 
 bool CrossExchange::is_valid() {
-  return gain_computed && stored_gain != NO_GAIN;
+  if (!utils::vrptw_ls::ls_simple_eval(_input)) {
+    return gain_computed && stored_gain != NO_GAIN;
+  }
+
+  bool valid = cvrp::CrossExchange::is_valid();
+
+  if (valid) {
+    auto t_start = t_route.begin() + t_rank;
+    s_is_normal_valid =
+      s_is_normal_valid && _tw_s_route.is_valid_addition_for_tw(_input,
+                                                                target_delivery,
+                                                                t_start,
+                                                                t_start + 2,
+                                                                s_rank,
+                                                                s_rank + 2);
+
+    if (check_t_reverse) {
+      auto t_reverse_start = t_route.rbegin() + t_route.size() - 2 - t_rank;
+      s_is_reverse_valid =
+        s_is_reverse_valid &&
+        _tw_s_route.is_valid_addition_for_tw(_input,
+                                             target_delivery,
+                                             t_reverse_start,
+                                             t_reverse_start + 2,
+                                             s_rank,
+                                             s_rank + 2);
+    }
+
+    valid = s_is_normal_valid || s_is_reverse_valid;
+  }
+
+  if (valid) {
+    auto s_start = s_route.begin() + s_rank;
+    t_is_normal_valid =
+      t_is_normal_valid && _tw_t_route.is_valid_addition_for_tw(_input,
+                                                                source_delivery,
+                                                                s_start,
+                                                                s_start + 2,
+                                                                t_rank,
+                                                                t_rank + 2);
+
+    if (check_s_reverse) {
+      auto s_reverse_start = s_route.rbegin() + s_route.size() - 2 - s_rank;
+      t_is_reverse_valid =
+        t_is_reverse_valid &&
+        _tw_t_route.is_valid_addition_for_tw(_input,
+                                             source_delivery,
+                                             s_reverse_start,
+                                             s_reverse_start + 2,
+                                             t_rank,
+                                             t_rank + 2);
+    }
+
+    valid = t_is_normal_valid || t_is_reverse_valid;
+  }
+
+  return valid;
 }
 
 void CrossExchange::apply() {

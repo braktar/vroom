@@ -50,6 +50,12 @@ void IntraOrOpt::compute_gain() {
     (void)gain_upper_bound();
   }
 
+  if (utils::vrptw_ls::ls_simple_eval(_input)) {
+    utils::vrptw_ls::run_travel_compute_gain(
+      [&] { cvrp::IntraOrOpt::compute_gain(); });
+    return;
+  }
+
   utils::vrptw_ls::run_edge_swap_compute_gain(
     stored_gain,
     gain_computed,
@@ -126,7 +132,40 @@ void IntraOrOpt::apply_wait_gain_adjustment() {
 }
 
 bool IntraOrOpt::is_valid() {
-  return gain_computed && stored_gain != NO_GAIN;
+  if (!utils::vrptw_ls::ls_simple_eval(_input)) {
+    return gain_computed && stored_gain != NO_GAIN;
+  }
+
+  bool valid = cvrp::IntraOrOpt::is_valid();
+
+  if (valid) {
+    is_normal_valid = is_normal_valid &&
+                      _tw_s_route.is_valid_addition_for_tw(_input,
+                                                           _delivery,
+                                                           _moved_jobs.begin(),
+                                                           _moved_jobs.end(),
+                                                           _first_rank,
+                                                           _last_rank);
+
+    if (check_reverse) {
+      std::swap(_moved_jobs[_s_edge_first], _moved_jobs[_s_edge_last]);
+
+      is_reverse_valid =
+        is_reverse_valid &&
+        _tw_s_route.is_valid_addition_for_tw(_input,
+                                             _delivery,
+                                             _moved_jobs.begin(),
+                                             _moved_jobs.end(),
+                                             _first_rank,
+                                             _last_rank);
+
+      std::swap(_moved_jobs[_s_edge_first], _moved_jobs[_s_edge_last]);
+    }
+
+    valid = (is_normal_valid || is_reverse_valid);
+  }
+
+  return valid;
 }
 
 void IntraOrOpt::apply() {

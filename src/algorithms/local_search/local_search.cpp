@@ -36,6 +36,20 @@ namespace vroom::ls {
 
 namespace {
 
+bool ls_validates_before_gain(OperatorName name) {
+  switch (name) {
+  case OperatorName::CrossExchange:
+  case OperatorName::IntraCrossExchange:
+  case OperatorName::OrOpt:
+  case OperatorName::IntraOrOpt:
+  case OperatorName::MixedExchange:
+  case OperatorName::IntraMixedExchange:
+    return true;
+  default:
+    return false;
+  }
+}
+
 template <class Op>
 bool operator_beats_current_best(const Input& input, Op& op, const Eval& current_best) {
   const bool simple_eval =
@@ -50,6 +64,12 @@ bool operator_beats_current_best(const Input& input, Op& op, const Eval& current
 
   // Match v1.15 evaluation order when wait/duration extras are inactive.
   if (simple_eval) {
+    if (ls_validates_before_gain(op.get_name())) {
+      if (!op.is_valid()) {
+        return false;
+      }
+      return current_best < op.gain();
+    }
     return current_best < op.gain() && op.is_valid();
   }
 

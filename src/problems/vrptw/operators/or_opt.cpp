@@ -54,6 +54,11 @@ void OrOpt::compute_gain() {
     (void)gain_upper_bound();
   }
 
+  if (utils::vrptw_ls::ls_simple_eval(_input)) {
+    utils::vrptw_ls::run_travel_compute_gain([&] { cvrp::OrOpt::compute_gain(); });
+    return;
+  }
+
   utils::vrptw_ls::run_edge_swap_compute_gain(
     stored_gain,
     gain_computed,
@@ -120,7 +125,35 @@ void OrOpt::apply_wait_gain_adjustment() {
 }
 
 bool OrOpt::is_valid() {
-  return gain_computed && stored_gain != NO_GAIN;
+  if (!utils::vrptw_ls::ls_simple_eval(_input)) {
+    return gain_computed && stored_gain != NO_GAIN;
+  }
+
+  bool valid =
+    cvrp::OrOpt::is_valid() && _tw_s_route.is_valid_removal(_input, s_rank, 2);
+
+  if (valid) {
+    auto s_start = s_route.begin() + s_rank;
+    is_normal_valid =
+      is_normal_valid && _tw_t_route.is_valid_addition_for_tw(_input,
+                                                              edge_delivery,
+                                                              s_start,
+                                                              s_start + 2,
+                                                              t_rank,
+                                                              t_rank);
+    auto s_reverse_start = s_route.rbegin() + s_route.size() - 2 - s_rank;
+    is_reverse_valid = is_reverse_valid &&
+                       _tw_t_route.is_valid_addition_for_tw(_input,
+                                                            edge_delivery,
+                                                            s_reverse_start,
+                                                            s_reverse_start + 2,
+                                                            t_rank,
+                                                            t_rank);
+
+    valid = is_normal_valid || is_reverse_valid;
+  }
+
+  return valid;
 }
 
 void OrOpt::apply() {

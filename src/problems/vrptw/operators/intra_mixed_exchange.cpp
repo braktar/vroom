@@ -50,6 +50,12 @@ void IntraMixedExchange::compute_gain() {
     (void)gain_upper_bound();
   }
 
+  if (utils::vrptw_ls::ls_simple_eval(_input)) {
+    utils::vrptw_ls::run_travel_compute_gain(
+      [&] { cvrp::IntraMixedExchange::compute_gain(); });
+    return;
+  }
+
   utils::vrptw_ls::run_edge_swap_compute_gain(
     stored_gain,
     gain_computed,
@@ -127,7 +133,41 @@ void IntraMixedExchange::apply_wait_gain_adjustment() {
 }
 
 bool IntraMixedExchange::is_valid() {
-  return gain_computed && stored_gain != NO_GAIN;
+  if (!utils::vrptw_ls::ls_simple_eval(_input)) {
+    return gain_computed && stored_gain != NO_GAIN;
+  }
+
+  bool valid = cvrp::IntraMixedExchange::is_valid();
+
+  if (valid) {
+    s_is_normal_valid =
+      s_is_normal_valid &&
+      _tw_s_route.is_valid_addition_for_tw(_input,
+                                           _delivery,
+                                           _moved_jobs.begin(),
+                                           _moved_jobs.end(),
+                                           _first_rank,
+                                           _last_rank);
+
+    if (check_t_reverse) {
+      std::swap(_moved_jobs[_t_edge_first], _moved_jobs[_t_edge_last]);
+
+      s_is_reverse_valid =
+        s_is_reverse_valid &&
+        _tw_s_route.is_valid_addition_for_tw(_input,
+                                             _delivery,
+                                             _moved_jobs.begin(),
+                                             _moved_jobs.end(),
+                                             _first_rank,
+                                             _last_rank);
+
+      std::swap(_moved_jobs[_t_edge_first], _moved_jobs[_t_edge_last]);
+    }
+
+    valid = s_is_normal_valid || s_is_reverse_valid;
+  }
+
+  return valid;
 }
 
 void IntraMixedExchange::apply() {
