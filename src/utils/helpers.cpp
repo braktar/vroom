@@ -649,6 +649,10 @@ bool insertion_respects_vehicle_bounds(const Input& input,
       !vehicle.ok_for_distance(combined.distance)) {
     return false;
   }
+  if (!input.has_bounded_max_duration()) {
+    // Match v1.15: eval bounds only; capacity/TW checked separately.
+    return vehicle.ok_for_range_bounds(combined);
+  }
   if (vehicle.max_duration == DEFAULT_MAX_DURATION) {
     std::vector<Index> jobs = route;
     jobs.insert(jobs.begin() + static_cast<std::ptrdiff_t>(rank), job_rank);
@@ -2060,17 +2064,22 @@ Route format_route(const Input& input,
   assert(eval_sum.duration == duration);
 #ifndef NDEBUG
   // Billable wait must match the format_route timeline (depot idle + in-route).
-  const Duration timeline_billable =
-    (front_step_arrival - v.earliest_route_start()) + forward_wt;
-  assert(timeline_billable == tw_r.billable_total_wait);
+  if (input.has_nonzero_per_wait_hour()) {
+    const Duration timeline_billable =
+      (front_step_arrival - v.earliest_route_start()) + forward_wt;
+    assert(timeline_billable == tw_r.billable_total_wait);
+  }
 #endif
+  const Duration billable_wait_for_bounds = input.has_nonzero_per_wait_hour()
+                                              ? tw_r.billable_total_wait
+                                              : 0;
   // max_duration: travel + job setup/service + billable wait (break service is
   // excluded from work time).
   assert(v.ok_for_range_bounds(Eval(0,
                                     eval_sum.duration,
                                     eval_sum.distance,
                                     setup + jobs_service,
-                                    tw_r.billable_total_wait)));
+                                    billable_wait_for_bounds)));
 
   assert(v.fixed_cost() % (DURATION_FACTOR * COST_FACTOR) == 0);
   const UserCost user_fixed_cost = utils::scale_to_user_cost(v.fixed_cost());

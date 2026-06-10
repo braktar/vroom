@@ -56,6 +56,8 @@ private:
   bool _report_distances;
   bool _has_jobs{false};
   bool _has_shipments{false};
+  bool _has_nonzero_per_wait_hour{false};
+  bool _has_bounded_max_duration{false};
   std::unordered_map<std::string,
                      Matrix<UserDuration>,
                      StringHash,
@@ -171,6 +173,11 @@ public:
   bool has_nonzero_per_wait_hour() const;
 
   bool has_bounded_max_duration() const;
+
+  // Cached: no wait-cost objective and no max_duration constraints in the model.
+  bool ls_simple_eval() const {
+    return !_has_nonzero_per_wait_hour && !_has_bounded_max_duration;
+  }
 
   bool is_used_several_times(const Location& location) const;
 

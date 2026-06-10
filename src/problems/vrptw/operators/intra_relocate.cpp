@@ -65,17 +65,23 @@ void IntraRelocate::apply_wait_gain_adjustment() {
 
 
 bool IntraRelocate::is_valid() {
+  const auto tw_ok = [&] {
+    return cvrp::IntraRelocate::is_valid() &&
+           _tw_s_route.is_valid_addition_for_tw(_input,
+                                                _delivery,
+                                                _moved_jobs.begin(),
+                                                _moved_jobs.end(),
+                                                _first_rank,
+                                                _last_rank);
+  };
+
+  if (!_input.has_bounded_max_duration()) {
+    return tw_ok();
+  }
+
   return utils::vrptw_ls::is_valid(
     _input,
-    [&] {
-      return cvrp::IntraRelocate::is_valid() &&
-             _tw_s_route.is_valid_addition_for_tw(_input,
-                                                  _delivery,
-                                                  _moved_jobs.begin(),
-                                                  _moved_jobs.end(),
-                                                  _first_rank,
-                                                  _last_rank);
-    },
+    tw_ok,
     [&] {
       std::vector<Index> route_after;
       utils::build_intra_relocate_post_route(s_route, s_rank, t_rank, route_after);

@@ -28,6 +28,10 @@ IntraExchange::IntraExchange(const Input& input,
 }
 
 bool IntraExchange::prunable_by_travel_upper_bound(const Eval& current_best) {
+  if (utils::vrptw_ls::ls_simple_eval(_input)) {
+    return false;
+  }
+
   const Eval travel_ub = utils::vrptw_ls::intra_exchange_travel_upper_bound(
     _input, _sol_state, s_route, s_vehicle, s_rank, t_rank);
   return utils::vrptw_ls::prunable_by_travel_upper_bound(
@@ -64,17 +68,23 @@ void IntraExchange::apply_wait_gain_adjustment() {
 
 
 bool IntraExchange::is_valid() {
+  const auto tw_ok = [&] {
+    return cvrp::IntraExchange::is_valid() &&
+           _tw_s_route.is_valid_addition_for_tw(_input,
+                                                _delivery,
+                                                _moved_jobs.begin(),
+                                                _moved_jobs.end(),
+                                                _first_rank,
+                                                _last_rank);
+  };
+
+  if (!_input.has_bounded_max_duration()) {
+    return tw_ok();
+  }
+
   return utils::vrptw_ls::is_valid(
     _input,
-    [&] {
-      return cvrp::IntraExchange::is_valid() &&
-             _tw_s_route.is_valid_addition_for_tw(_input,
-                                                  _delivery,
-                                                  _moved_jobs.begin(),
-                                                  _moved_jobs.end(),
-                                                  _first_rank,
-                                                  _last_rank);
-    },
+    tw_ok,
     [&] {
       std::vector<Index> route_after;
       utils::build_one_route_after_moved_jobs(s_route,

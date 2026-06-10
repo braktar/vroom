@@ -32,6 +32,10 @@ UnassignedExchange::UnassignedExchange(const Input& input,
 }
 
 bool UnassignedExchange::prunable_by_travel_upper_bound(const Eval& current_best) {
+  if (utils::vrptw_ls::ls_simple_eval(_input)) {
+    return false;
+  }
+
   Eval travel_ub;
   if (t_rank == s_rank) {
     travel_ub = utils::addition_eval_delta(_input,

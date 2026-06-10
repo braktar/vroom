@@ -33,6 +33,10 @@ ReverseTwoOpt::ReverseTwoOpt(const Input& input,
 }
 
 bool ReverseTwoOpt::prunable_by_travel_upper_bound(const Eval& current_best) {
+  if (utils::vrptw_ls::ls_simple_eval(_input)) {
+    return false;
+  }
+
   const Eval travel_ub =
     utils::vrptw_ls::reverse_two_opt_travel_upper_bound(_input,
                                                       _sol_state,
@@ -82,25 +86,31 @@ void ReverseTwoOpt::apply_wait_gain_adjustment() {
 
 
 bool ReverseTwoOpt::is_valid() {
+  const auto tw_ok = [&] {
+    return cvrp::ReverseTwoOpt::is_valid() &&
+           _tw_t_route.is_valid_addition_for_tw(_input,
+                                                _s_delivery,
+                                                s_route.rbegin(),
+                                                s_route.rbegin() +
+                                                  s_route.size() - 1 - s_rank,
+                                                0,
+                                                t_rank + 1) &&
+           _tw_s_route.is_valid_addition_for_tw(_input,
+                                                  _t_delivery,
+                                                  t_route.rbegin() +
+                                                    t_route.size() - 1 - t_rank,
+                                                  t_route.rend(),
+                                                  s_rank + 1,
+                                                  s_route.size());
+  };
+
+  if (!_input.has_bounded_max_duration()) {
+    return tw_ok();
+  }
+
   return utils::vrptw_ls::is_valid(
     _input,
-    [&] {
-      return cvrp::ReverseTwoOpt::is_valid() &&
-             _tw_t_route.is_valid_addition_for_tw(_input,
-                                                  _s_delivery,
-                                                  s_route.rbegin(),
-                                                  s_route.rbegin() +
-                                                    s_route.size() - 1 - s_rank,
-                                                  0,
-                                                  t_rank + 1) &&
-             _tw_s_route.is_valid_addition_for_tw(_input,
-                                                    _t_delivery,
-                                                    t_route.rbegin() +
-                                                      t_route.size() - 1 - t_rank,
-                                                    t_route.rend(),
-                                                    s_rank + 1,
-                                                    s_route.size());
-    },
+    tw_ok,
     [&] {
       std::vector<Index> ns;
       std::vector<Index> nt;

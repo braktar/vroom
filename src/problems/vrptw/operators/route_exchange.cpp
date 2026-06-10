@@ -31,6 +31,10 @@ RouteExchange::RouteExchange(const Input& input,
 }
 
 bool RouteExchange::prunable_by_travel_upper_bound(const Eval& current_best) {
+  if (utils::vrptw_ls::ls_simple_eval(_input)) {
+    return false;
+  }
+
   const Eval travel_ub = utils::vrptw_ls::route_exchange_travel_upper_bound(
     _input, _sol_state, source, s_vehicle, target, t_vehicle);
   return utils::vrptw_ls::prunable_by_travel_upper_bound(
@@ -71,23 +75,29 @@ void RouteExchange::apply_wait_gain_adjustment() {
 
 
 bool RouteExchange::is_valid() {
+  const auto tw_ok = [&] {
+    return cvrp::RouteExchange::is_valid() &&
+           _tw_t_route.is_valid_addition_for_tw(_input,
+                                                _source_job_deliveries_sum,
+                                                s_route.begin(),
+                                                s_route.end(),
+                                                0,
+                                                t_route.size()) &&
+           _tw_s_route.is_valid_addition_for_tw(_input,
+                                                  _target_job_deliveries_sum,
+                                                  t_route.begin(),
+                                                  t_route.end(),
+                                                  0,
+                                                  s_route.size());
+  };
+
+  if (!_input.has_bounded_max_duration()) {
+    return tw_ok();
+  }
+
   return utils::vrptw_ls::is_valid(
     _input,
-    [&] {
-      return cvrp::RouteExchange::is_valid() &&
-             _tw_t_route.is_valid_addition_for_tw(_input,
-                                                  _source_job_deliveries_sum,
-                                                  s_route.begin(),
-                                                  s_route.end(),
-                                                  0,
-                                                  t_route.size()) &&
-             _tw_s_route.is_valid_addition_for_tw(_input,
-                                                    _target_job_deliveries_sum,
-                                                    t_route.begin(),
-                                                    t_route.end(),
-                                                    0,
-                                                    s_route.size());
-    },
+    tw_ok,
     [&] {
       return utils::routes_within_max_duration_for_ls(_input,
                                                       s_vehicle,

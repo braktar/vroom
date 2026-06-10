@@ -263,6 +263,10 @@ void Input::add_vehicle(const Vehicle& vehicle) {
   // Check for time-windows and skills.
   _has_TW = _has_TW || !vehicle.tw.is_default() || !vehicle.breaks.empty();
   _has_skills = _has_skills || !current_v.skills.empty();
+  _has_nonzero_per_wait_hour =
+    _has_nonzero_per_wait_hour || (current_v.costs.per_wait_hour != 0);
+  _has_bounded_max_duration =
+    _has_bounded_max_duration || (current_v.max_duration != DEFAULT_MAX_DURATION);
 
   bool has_location_index = false;
   bool has_all_coordinates = true;
@@ -438,15 +442,11 @@ bool Input::is_used_several_times(const Location& location) const {
 }
 
 bool Input::has_nonzero_per_wait_hour() const {
-  return std::ranges::any_of(vehicles, [](const Vehicle& v) {
-    return v.costs.per_wait_hour != 0;
-  });
+  return _has_nonzero_per_wait_hour;
 }
 
 bool Input::has_bounded_max_duration() const {
-  return std::ranges::any_of(vehicles, [](const Vehicle& v) {
-    return v.max_duration != DEFAULT_MAX_DURATION;
-  });
+  return _has_bounded_max_duration;
 }
 
 bool Input::has_skills() const {

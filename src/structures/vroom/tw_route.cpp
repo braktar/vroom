@@ -1550,7 +1550,7 @@ void TWRoute::replace(const Input& input,
     bwd_update_breaks_load_margin_from(input, current_job_rank);
   }
 
-  if (route.empty()) {
+  if (route.empty() || !input.has_nonzero_per_wait_hour()) {
     billable_total_wait = 0;
   } else {
     recompute_billable_total_wait(input);

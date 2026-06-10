@@ -16,7 +16,7 @@ namespace vroom::utils::vrptw_ls {
 
 // LS fast path: no wait-cost adjustment and no max_duration checks in operators.
 inline bool ls_simple_eval(const Input& input) {
-  return !input.has_nonzero_per_wait_hour() && !input.has_bounded_max_duration();
+  return input.ls_simple_eval();
 }
 
 // Travel gain only; wait adjustment runs in apply_wait_gain_adjustment().

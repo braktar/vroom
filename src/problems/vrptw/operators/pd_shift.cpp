@@ -48,6 +48,10 @@ bool PDShift::prunable_by_travel_upper_bound(const Eval& current_best) {
     return true;
   }
 
+  if (utils::vrptw_ls::ls_simple_eval(_input)) {
+    return false;
+  }
+
   return utils::vrptw_ls::prunable_by_travel_upper_bound(
     _input,
     current_best,

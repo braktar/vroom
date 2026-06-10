@@ -30,6 +30,10 @@ IntraTwoOpt::IntraTwoOpt(const Input& input,
 }
 
 bool IntraTwoOpt::prunable_by_travel_upper_bound(const Eval& current_best) {
+  if (utils::vrptw_ls::ls_simple_eval(_input)) {
+    return false;
+  }
+
   const Eval travel_ub = utils::vrptw_ls::intra_two_opt_travel_upper_bound(
     _input, _sol_state, source, s_rank, t_rank);
   return utils::vrptw_ls::prunable_by_travel_upper_bound(
@@ -68,21 +72,27 @@ void IntraTwoOpt::apply_wait_gain_adjustment() {
 
 
 bool IntraTwoOpt::is_valid() {
+  const auto tw_ok = [&] {
+    if (!cvrp::IntraTwoOpt::is_valid()) {
+      return false;
+    }
+    auto rev_t = s_route.rbegin() + (s_route.size() - t_rank - 1);
+    auto rev_s_next = s_route.rbegin() + (s_route.size() - s_rank);
+    return _tw_s_route.is_valid_addition_for_tw(_input,
+                                                delivery,
+                                                rev_t,
+                                                rev_s_next,
+                                                s_rank,
+                                                t_rank + 1);
+  };
+
+  if (!_input.has_bounded_max_duration()) {
+    return tw_ok();
+  }
+
   return utils::vrptw_ls::is_valid(
     _input,
-    [&] {
-      if (!cvrp::IntraTwoOpt::is_valid()) {
-        return false;
-      }
-      auto rev_t = s_route.rbegin() + (s_route.size() - t_rank - 1);
-      auto rev_s_next = s_route.rbegin() + (s_route.size() - s_rank);
-      return _tw_s_route.is_valid_addition_for_tw(_input,
-                                                  delivery,
-                                                  rev_t,
-                                                  rev_s_next,
-                                                  s_rank,
-                                                  t_rank + 1);
-    },
+    tw_ok,
     [&] {
       auto nr = s_route;
       std::reverse(nr.begin() + static_cast<std::ptrdiff_t>(s_rank),

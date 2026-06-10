@@ -426,33 +426,53 @@ inline Eval fill_route(const Input& input,
             if (current_cost < best_cost) {
               modified_with_pd.push_back(job_rank + 1);
 
-              // Update best cost depending on validity.
-              std::vector<Index> route_after_pd = route.route;
-              route_after_pd.insert(route_after_pd.begin() +
-                                      static_cast<std::ptrdiff_t>(pickup_r),
-                                    modified_with_pd.begin(),
-                                    modified_with_pd.end());
+              bool valid = false;
+              if (!input.has_bounded_max_duration()) {
+                valid =
+                  vehicle.ok_for_range_bounds(route_eval + current_eval) &&
+                  route
+                    .is_valid_addition_for_capacity_inclusion(input,
+                                                              modified_delivery,
+                                                              modified_with_pd
+                                                                .begin(),
+                                                              modified_with_pd
+                                                                .end(),
+                                                              pickup_r,
+                                                              delivery_r) &&
+                  route.is_valid_addition_for_tw(input,
+                                                 modified_delivery,
+                                                 modified_with_pd.begin(),
+                                                 modified_with_pd.end(),
+                                                 pickup_r,
+                                                 delivery_r);
+              } else {
+                std::vector<Index> route_after_pd = route.route;
+                route_after_pd.insert(route_after_pd.begin() +
+                                        static_cast<std::ptrdiff_t>(pickup_r),
+                                      modified_with_pd.begin(),
+                                      modified_with_pd.end());
 
-              const bool valid =
-                utils::route_after_jobs_within_max_duration(input,
-                                                            v_rank,
-                                                            route_after_pd,
-                                                            route) &&
-                route
-                  .is_valid_addition_for_capacity_inclusion(input,
-                                                            modified_delivery,
-                                                            modified_with_pd
-                                                              .begin(),
-                                                            modified_with_pd
-                                                              .end(),
-                                                            pickup_r,
-                                                            delivery_r) &&
-                route.is_valid_addition_for_tw(input,
-                                               modified_delivery,
-                                               modified_with_pd.begin(),
-                                               modified_with_pd.end(),
-                                               pickup_r,
-                                               delivery_r);
+                valid =
+                  utils::route_after_jobs_within_max_duration(input,
+                                                              v_rank,
+                                                              route_after_pd,
+                                                              route) &&
+                  route
+                    .is_valid_addition_for_capacity_inclusion(input,
+                                                              modified_delivery,
+                                                              modified_with_pd
+                                                                .begin(),
+                                                              modified_with_pd
+                                                                .end(),
+                                                              pickup_r,
+                                                              delivery_r) &&
+                  route.is_valid_addition_for_tw(input,
+                                                 modified_delivery,
+                                                 modified_with_pd.begin(),
+                                                 modified_with_pd.end(),
+                                                 pickup_r,
+                                                 delivery_r);
+              }
 
               modified_with_pd.pop_back();
 
@@ -889,14 +909,16 @@ void set_route(const Input& input,
                   0,
                   0);
 
-    auto route_eval =
-      utils::route_eval_for_vehicle(input, route.v_rank, route.route);
-    if constexpr (std::is_same_v<Route, TWRoute>) {
-      route_eval.wait_duration = route.billable_total_wait;
-    }
-    if (!vehicle.ok_for_range_bounds(route_eval)) {
-      throw InputException(
-        std::format("Route exceeds vehicle bounds for vehicle {}.", vehicle.id));
+    if (input.has_bounded_max_duration()) {
+      auto route_eval =
+        utils::route_eval_for_vehicle(input, route.v_rank, route.route);
+      if constexpr (std::is_same_v<Route, TWRoute>) {
+        route_eval.wait_duration = route.billable_total_wait;
+      }
+      if (!vehicle.ok_for_range_bounds(route_eval)) {
+        throw InputException(std::format(
+          "Route exceeds vehicle bounds for vehicle {}.", vehicle.id));
+      }
     }
   }
 }

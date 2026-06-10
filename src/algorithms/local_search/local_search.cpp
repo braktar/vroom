@@ -52,8 +52,7 @@ bool ls_validates_before_gain(OperatorName name) {
 
 template <class Op>
 bool operator_beats_current_best(const Input& input, Op& op, const Eval& current_best) {
-  const bool simple_eval =
-    !input.has_nonzero_per_wait_hour() && !input.has_bounded_max_duration();
+  const bool simple_eval = input.ls_simple_eval();
 
   if (!simple_eval) {
     op.set_best_known_threshold(current_best);
@@ -1238,7 +1237,9 @@ void LocalSearch<Route,
                        _sol[target],
                        target,
                        t_rank);
-            r.set_best_known_threshold(best_gains[source][target]);
+            if (_input.has_nonzero_per_wait_hour()) {
+              r.set_best_known_threshold(best_gains[source][target]);
+            }
 
             if (ls_candidate_improves(_input, r, best_gains[source][target])) {
               best_gains[source][target] = r.current_gain();
