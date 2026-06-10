@@ -79,13 +79,19 @@ void Relocate::apply_wait_gain_adjustment() {
 }
 
 bool Relocate::is_valid() {
+  const auto tw_ok = [&] {
+    return cvrp::Relocate::is_valid() &&
+           _tw_t_route.is_valid_addition_for_tw(_input, s_route[s_rank], t_rank) &&
+           _tw_s_route.is_valid_removal(_input, s_rank, 1);
+  };
+
+  if (!_input.has_bounded_max_duration()) {
+    return tw_ok();
+  }
+
   return utils::vrptw_ls::is_valid(
     _input,
-    [&] {
-      return cvrp::Relocate::is_valid() &&
-             _tw_t_route.is_valid_addition_for_tw(_input, s_route[s_rank], t_rank) &&
-             _tw_s_route.is_valid_removal(_input, s_rank, 1);
-    },
+    tw_ok,
     [&] {
       std::vector<Index> source_after;
       std::vector<Index> target_after;

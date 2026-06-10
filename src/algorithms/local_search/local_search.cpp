@@ -37,11 +37,22 @@ namespace vroom::ls {
 namespace {
 
 template <class Op>
-bool operator_beats_current_best(Op& op, const Eval& current_best) {
-  op.set_best_known_threshold(current_best);
+bool operator_beats_current_best(const Input& input, Op& op, const Eval& current_best) {
+  const bool simple_eval =
+    !input.has_nonzero_per_wait_hour() && !input.has_bounded_max_duration();
+
+  if (!simple_eval) {
+    op.set_best_known_threshold(current_best);
+  }
   if (op.prunable_by_travel_upper_bound(current_best)) {
     return false;
   }
+
+  // Match v1.15 evaluation order when wait/duration extras are inactive.
+  if (simple_eval) {
+    return current_best < op.gain() && op.is_valid();
+  }
+
   op.ensure_travel_gain_computed();
   if (!(current_best < op.current_gain())) {
     return false;
@@ -53,8 +64,8 @@ bool operator_beats_current_best(Op& op, const Eval& current_best) {
 }
 
 template <class Op>
-bool ls_candidate_improves(Op& op, const Eval& current_best) {
-  return operator_beats_current_best(op, current_best);
+bool ls_candidate_improves(const Input& input, Op& op, const Eval& current_best) {
+  return operator_beats_current_best(input, op, current_best);
 }
 
 } // namespace
@@ -790,7 +801,7 @@ void LocalSearch<Route,
                           !is_t_pickup);
 
           auto& current_best = best_gains[source][target];
-          if (operator_beats_current_best(r, current_best)) {
+          if (operator_beats_current_best(_input, r, current_best)) {
             current_best = r.current_gain();
             best_ops[source][target] = std::make_unique<CrossExchange>(r);
           }
@@ -906,7 +917,7 @@ void LocalSearch<Route,
                             !is_t_pickup);
 
             auto& current_best = best_gains[source][target];
-            if (operator_beats_current_best(r, current_best)) {
+            if (operator_beats_current_best(_input, r, current_best)) {
               current_best = r.current_gain();
               best_ops[source][target] = std::make_unique<MixedExchange>(r);
             }
@@ -1029,7 +1040,7 @@ void LocalSearch<Route,
                    target,
                    t_rank);
 
-          if (ls_candidate_improves(r, best_gains[source][target])) {
+          if (ls_candidate_improves(_input, r, best_gains[source][target])) {
             best_gains[source][target] = r.current_gain();
             best_ops[source][target] = std::make_unique<TwoOpt>(r);
           }
@@ -1133,7 +1144,7 @@ void LocalSearch<Route,
                           target,
                           t_rank);
 
-          if (ls_candidate_improves(r, best_gains[source][target])) {
+          if (ls_candidate_improves(_input, r, best_gains[source][target])) {
             best_gains[source][target] = r.current_gain();
             best_ops[source][target] = std::make_unique<ReverseTwoOpt>(r);
           }
@@ -1209,7 +1220,7 @@ void LocalSearch<Route,
                        t_rank);
             r.set_best_known_threshold(best_gains[source][target]);
 
-            if (ls_candidate_improves(r, best_gains[source][target])) {
+            if (ls_candidate_improves(_input, r, best_gains[source][target])) {
               best_gains[source][target] = r.current_gain();
               best_ops[source][target] = std::make_unique<Relocate>(r);
             }
@@ -1287,7 +1298,7 @@ void LocalSearch<Route,
                     t_rank);
 
             auto& current_best = best_gains[source][target];
-            if (operator_beats_current_best(r, current_best)) {
+            if (operator_beats_current_best(_input, r, current_best)) {
               current_best = r.current_gain();
               best_ops[source][target] = std::make_unique<OrOpt>(r);
             }
@@ -1310,7 +1321,7 @@ void LocalSearch<Route,
 
         TSPFix op(_input, _sol_state, _sol[source], source);
 
-        if (ls_candidate_improves(op, best_gains[source][target])) {
+        if (ls_candidate_improves(_input, op, best_gains[source][target])) {
           best_gains[source][target] = op.current_gain();
           best_ops[source][target] = std::make_unique<TSPFix>(op);
         }
@@ -1363,7 +1374,7 @@ void LocalSearch<Route,
                           s_rank,
                           t_rank);
 
-          if (ls_candidate_improves(r, best_gains[source][source])) {
+          if (ls_candidate_improves(_input, r, best_gains[source][source])) {
             best_gains[source][source] = r.current_gain();
             best_ops[source][source] = std::make_unique<IntraExchange>(r);
           }
@@ -1437,7 +1448,7 @@ void LocalSearch<Route,
                                !is_t_pickup);
 
           auto& current_best = best_gains[source][target];
-          if (operator_beats_current_best(r, current_best)) {
+          if (operator_beats_current_best(_input, r, current_best)) {
             current_best = r.current_gain();
             best_ops[source][source] = std::make_unique<IntraCrossExchange>(r);
           }
@@ -1507,7 +1518,7 @@ void LocalSearch<Route,
                                t_rank,
                                !is_t_pickup);
           auto& current_best = best_gains[source][target];
-          if (operator_beats_current_best(r, current_best)) {
+          if (operator_beats_current_best(_input, r, current_best)) {
             current_best = r.current_gain();
             best_ops[source][source] = std::make_unique<IntraMixedExchange>(r);
           }
@@ -1576,7 +1587,7 @@ void LocalSearch<Route,
                           s_rank,
                           t_rank);
 
-          if (ls_candidate_improves(r, best_gains[source][source])) {
+          if (ls_candidate_improves(_input, r, best_gains[source][source])) {
             best_gains[source][source] = r.current_gain();
             best_ops[source][source] = std::make_unique<IntraRelocate>(r);
           }
@@ -1653,7 +1664,7 @@ void LocalSearch<Route,
                        t_rank,
                        !is_pickup);
           auto& current_best = best_gains[source][target];
-          if (operator_beats_current_best(r, current_best)) {
+          if (operator_beats_current_best(_input, r, current_best)) {
             current_best = r.current_gain();
             best_ops[source][source] = std::make_unique<IntraOrOpt>(r);
           }
@@ -1687,7 +1698,7 @@ void LocalSearch<Route,
                         s_rank,
                         t_rank);
           auto& current_best = best_gains[source][target];
-          if (ls_candidate_improves(r, current_best)) {
+          if (ls_candidate_improves(_input, r, current_best)) {
             current_best = r.current_gain();
             best_ops[source][source] = std::make_unique<IntraTwoOpt>(r);
           }
@@ -1758,7 +1769,7 @@ void LocalSearch<Route,
                       target,
                       best_gains[source][target]);
 
-          if (ls_candidate_improves(pdr, best_gains[source][target])) {
+          if (ls_candidate_improves(_input, pdr, best_gains[source][target])) {
             best_gains[source][target] = pdr.current_gain();
             best_ops[source][target] = std::make_unique<PDShift>(pdr);
           }
@@ -1811,7 +1822,7 @@ void LocalSearch<Route,
                          _sol[target],
                          target);
 
-        if (ls_candidate_improves(re, best_gains[source][target])) {
+        if (ls_candidate_improves(_input, re, best_gains[source][target])) {
           best_gains[source][target] = re.current_gain();
           best_ops[source][target] = std::make_unique<RouteExchange>(re);
         }
@@ -1845,7 +1856,7 @@ void LocalSearch<Route,
                    target,
                    best_gains[source][target]);
 
-        if (ls_candidate_improves(r, best_gains[source][target])) {
+        if (ls_candidate_improves(_input, r, best_gains[source][target])) {
           best_gains[source][target] = r.current_gain();
           best_ops[source][target] = std::make_unique<SwapStar>(r);
         }
@@ -1888,7 +1899,7 @@ void LocalSearch<Route,
                        _sol,
                        best_gains[source][target]);
 
-          if (ls_candidate_improves(r, best_gains[source][target])) {
+          if (ls_candidate_improves(_input, r, best_gains[source][target])) {
             best_gains[source][target] = r.current_gain();
             best_ops[source][target] = std::make_unique<RouteSplit>(r);
           }

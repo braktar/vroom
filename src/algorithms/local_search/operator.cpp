@@ -44,7 +44,9 @@ bool Operator::prunable_by_travel_upper_bound(const Eval& current_best) {
 
 Eval Operator::gain() {
   ensure_travel_gain_computed();
-  apply_wait_gain_adjustment();
+  if (_input.has_nonzero_per_wait_hour()) {
+    apply_wait_gain_adjustment();
+  }
   return stored_gain;
 }
 
