@@ -108,7 +108,11 @@ Eval IntraCrossExchange::gain_upper_bound() {
 
 void IntraCrossExchange::compute_gain() {
   CVRP_EDGE_SWAP_PREP(IntraCrossExchange);
+  CVRP_EDGE_SWAP_REQUIRE_VALID(IntraCrossExchange);
+  select_stored_gain();
+}
 
+void IntraCrossExchange::select_stored_gain() {
   stored_gain = NO_GAIN;
 
   if (s_normal_t_normal_is_valid) {

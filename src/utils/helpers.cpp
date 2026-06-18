@@ -2043,6 +2043,13 @@ Route format_route(const Input& input,
   end_step.arrival = scale_to_user_duration(step_start);
   end_step.distance = eval_sum.distance;
 
+  assert(v.tw.end % DURATION_FACTOR == 0 || v.tw.is_default());
+  const auto user_v_tw_end = scale_to_user_duration(v.tw.end);
+  if (user_v_tw_end < end_step.arrival) {
+    end_step.violations.types.insert(VIOLATION::DELAY);
+    end_step.violations.delay = end_step.arrival - user_v_tw_end;
+  }
+
   // Recompute cumulated durations in a consistent way as seen from
   // UserDuration.
   assert(user_previous_end <= end_step.arrival);

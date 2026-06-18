@@ -99,7 +99,11 @@ Eval IntraOrOpt::gain_upper_bound() {
 
 void IntraOrOpt::compute_gain() {
   CVRP_EDGE_SWAP_PREP(IntraOrOpt);
+  CVRP_EDGE_SWAP_REQUIRE_VALID(IntraOrOpt);
+  select_stored_gain();
+}
 
+void IntraOrOpt::select_stored_gain() {
   stored_gain = s_gain;
 
   if (_normal_t_gain < _reversed_t_gain) {

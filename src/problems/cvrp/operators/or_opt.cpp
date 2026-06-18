@@ -61,7 +61,11 @@ Eval OrOpt::gain_upper_bound() {
 
 void OrOpt::compute_gain() {
   CVRP_EDGE_SWAP_PREP(OrOpt);
+  CVRP_EDGE_SWAP_REQUIRE_VALID(OrOpt);
+  select_stored_gain();
+}
 
+void OrOpt::select_stored_gain() {
   stored_gain = s_gain;
 
   if (_normal_t_gain < _reversed_t_gain) {

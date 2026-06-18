@@ -102,7 +102,7 @@ void OrOpt::compute_gain() {
                                                  &_tw_s_route,
                                                  &_tw_t_route);
     },
-    [&] { cvrp::OrOpt::compute_gain(); });
+    [&] { cvrp::OrOpt::select_stored_gain(); });
 }
 
 void OrOpt::apply_wait_gain_adjustment() {
@@ -126,7 +126,25 @@ void OrOpt::apply_wait_gain_adjustment() {
 
 bool OrOpt::is_valid() {
   if (!utils::vrptw_ls::ls_simple_eval(_input)) {
-    return gain_computed && stored_gain != NO_GAIN;
+    if (!gain_computed || stored_gain == NO_GAIN) {
+      return false;
+    }
+    if (reverse_s_edge) {
+      auto s_reverse_start = s_route.rbegin() + s_route.size() - 2 - s_rank;
+      return _tw_t_route.is_valid_addition_for_tw(_input,
+                                                    edge_delivery,
+                                                    s_reverse_start,
+                                                    s_reverse_start + 2,
+                                                    t_rank,
+                                                    t_rank);
+    }
+    auto s_start = s_route.begin() + s_rank;
+    return _tw_t_route.is_valid_addition_for_tw(_input,
+                                                  edge_delivery,
+                                                  s_start,
+                                                  s_start + 2,
+                                                  t_rank,
+                                                  t_rank);
   }
 
   bool valid =

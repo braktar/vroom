@@ -141,7 +141,7 @@ void CrossExchange::compute_gain() {
                                                        &_tw_s_route,
                                                        &_tw_t_route);
     },
-    [&] { cvrp::CrossExchange::compute_gain(); });
+    [&] { cvrp::CrossExchange::select_stored_gain(); });
 }
 
 void CrossExchange::apply_wait_gain_adjustment() {
@@ -166,7 +166,45 @@ void CrossExchange::apply_wait_gain_adjustment() {
 
 bool CrossExchange::is_valid() {
   if (!utils::vrptw_ls::ls_simple_eval(_input)) {
-    return gain_computed && stored_gain != NO_GAIN;
+    if (!gain_computed || stored_gain == NO_GAIN) {
+      return false;
+    }
+    std::vector<Index> t_job_ranks;
+    if (!reverse_t_edge) {
+      auto t_start = t_route.begin() + t_rank;
+      t_job_ranks.insert(t_job_ranks.begin(), t_start, t_start + 2);
+    } else {
+      auto t_reverse_start = t_route.rbegin() + t_route.size() - 2 - t_rank;
+      t_job_ranks.insert(t_job_ranks.begin(),
+                         t_reverse_start,
+                         t_reverse_start + 2);
+    }
+
+    const bool s_ok =
+      _tw_s_route.is_valid_addition_for_tw(_input,
+                                           target_delivery,
+                                           t_job_ranks.begin(),
+                                           t_job_ranks.end(),
+                                           s_rank,
+                                           s_rank + 2);
+
+    const bool t_ok =
+      !reverse_s_edge
+        ? _tw_t_route.is_valid_addition_for_tw(_input,
+                                               source_delivery,
+                                               s_route.begin() + s_rank,
+                                               s_route.begin() + s_rank + 2,
+                                               t_rank,
+                                               t_rank + 2)
+        : _tw_t_route.is_valid_addition_for_tw(
+            _input,
+            source_delivery,
+            s_route.rbegin() + s_route.size() - 2 - s_rank,
+            s_route.rbegin() + s_route.size() - s_rank,
+            t_rank,
+            t_rank + 2);
+
+    return s_ok && t_ok;
   }
 
   bool valid = cvrp::CrossExchange::is_valid();

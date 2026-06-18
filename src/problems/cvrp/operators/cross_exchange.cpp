@@ -108,7 +108,11 @@ Eval CrossExchange::gain_upper_bound() {
 
 void CrossExchange::compute_gain() {
   CVRP_EDGE_SWAP_PREP(CrossExchange);
+  CVRP_EDGE_SWAP_REQUIRE_VALID(CrossExchange);
+  select_stored_gain();
+}
 
+void CrossExchange::select_stored_gain() {
   stored_gain = Eval();
   if (_normal_s_gain < _reversed_s_gain) {
     // Biggest potential gain is obtained when reversing edge.

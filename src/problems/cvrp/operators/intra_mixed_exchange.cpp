@@ -109,7 +109,11 @@ Eval IntraMixedExchange::gain_upper_bound() {
 
 void IntraMixedExchange::compute_gain() {
   CVRP_EDGE_SWAP_PREP(IntraMixedExchange);
+  CVRP_EDGE_SWAP_REQUIRE_VALID(IntraMixedExchange);
+  select_stored_gain();
+}
 
+void IntraMixedExchange::select_stored_gain() {
   stored_gain = Eval();
   if (_normal_s_gain < _reversed_s_gain) {
     // Biggest potential gain is obtained when reversing edge.

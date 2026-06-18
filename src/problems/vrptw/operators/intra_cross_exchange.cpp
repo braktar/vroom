@@ -156,7 +156,7 @@ void IntraCrossExchange::compute_gain() {
                                                          route_after,
                                                          &_tw_s_route);
     },
-    [&] { cvrp::IntraCrossExchange::compute_gain(); });
+    [&] { cvrp::IntraCrossExchange::select_stored_gain(); });
 }
 
 void IntraCrossExchange::apply_wait_gain_adjustment() {
@@ -183,7 +183,22 @@ void IntraCrossExchange::apply_wait_gain_adjustment() {
 
 bool IntraCrossExchange::is_valid() {
   if (!utils::vrptw_ls::ls_simple_eval(_input)) {
-    return gain_computed && stored_gain != NO_GAIN;
+    if (!gain_computed || stored_gain == NO_GAIN) {
+      return false;
+    }
+    auto moved = _moved_jobs;
+    if (reverse_t_edge) {
+      std::swap(moved[0], moved[1]);
+    }
+    if (reverse_s_edge) {
+      std::swap(moved[_moved_jobs.size() - 2], moved[_moved_jobs.size() - 1]);
+    }
+    return _tw_s_route.is_valid_addition_for_tw(_input,
+                                                _delivery,
+                                                moved.begin(),
+                                                moved.end(),
+                                                _first_rank,
+                                                _last_rank);
   }
 
   bool valid = cvrp::IntraCrossExchange::is_valid();

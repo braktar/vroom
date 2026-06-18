@@ -26,6 +26,10 @@ protected:
 
   void compute_gain() override;
 
+  // Pick edge orientation and set stored_gain; gain_upper_bound() and is_valid()
+  // must already have run (VRPTW edge-swap LS calls this after TW checks).
+  void select_stored_gain();
+
 public:
   OrOpt(const Input& input,
         const utils::SolutionState& sol_state,
