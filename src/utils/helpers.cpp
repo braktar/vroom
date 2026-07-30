@@ -92,13 +92,16 @@ bool route_jobs_within_max_duration(const Input& input,
     return false;
   }
 
+  // Always enforce max_travel_time / max_distance, even when max_duration is
+  // unset. Skipping this used to allow seeding a single job that already
+  // exceeds max_distance on an open route.
+  if (!route_jobs_pass_range_pre_filter(input, vehicle_rank, jobs)) {
+    return false;
+  }
+
   const auto& vehicle = input.vehicles[vehicle_rank];
   if (vehicle.max_duration == DEFAULT_MAX_DURATION) {
     return true;
-  }
-
-  if (!route_jobs_pass_range_pre_filter(input, vehicle_rank, jobs)) {
-    return false;
   }
 
   auto eval = route_eval_for_vehicle(input, vehicle_rank, jobs);
@@ -843,17 +846,20 @@ bool route_jobs_within_max_duration_for_ls(const Input& input,
                                            const std::vector<Index>& jobs,
                                            const TWRoute* tw_live) {
   const auto& vehicle = input.vehicles[vehicle_rank];
-  if (vehicle.max_duration == DEFAULT_MAX_DURATION) {
-    return true;
-  }
 
   if (!jobs.empty()) {
     if (!RawRoute::jobs_within_capacity(input, vehicle_rank, jobs)) {
       return false;
     }
+    // Same as route_jobs_within_max_duration: range bounds apply even when
+    // max_duration is unset.
     if (!route_jobs_pass_range_pre_filter(input, vehicle_rank, jobs)) {
       return false;
     }
+  }
+
+  if (vehicle.max_duration == DEFAULT_MAX_DURATION) {
+    return true;
   }
 
   if (tw_live != nullptr && tw_live->v_rank == vehicle_rank) {
